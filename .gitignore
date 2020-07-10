@@ -1,2 +1,6 @@
+.vscode/
 venv/
 __pycache__/
+corpus_figures/
+selected_paths/
+tete.py
