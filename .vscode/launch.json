@@ -1,0 +1,47 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Arquivo Atual",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Dohare2017",
+            "type": "python",
+            "request": "launch",
+            "program": "SemOpinionS.py",
+            "args": ["-m", "DohareEtAl2017"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Dohare2018",
+            "type": "python",
+            "request": "launch",
+            "program": "SemOpinionS.py",
+            "args": ["-m", "DohareEtAl2018"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Clustering",
+            "type": "python",
+            "request": "launch",
+            "program": "SemOpinionS.py",
+            "args": ["-m", "clustering"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "LiaoEtAl2018",
+            "type": "python",
+            "request": "launch",
+            "program": "SemOpinionS.py",
+            "args": ["-m", "LiaoEtAl2018"],
+            "console": "integratedTerminal"
+        }
+    ]
+}
