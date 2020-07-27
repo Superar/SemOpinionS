@@ -6,6 +6,16 @@ class Alignment(object):
         self.sentences = sentences
         self.alignment = alignment
 
+        self.word_to_concept = list()
+        for sent in alignment:
+            words = dict()
+            for concept in sent:
+                for w in sent[concept]:
+                    if w not in words:
+                        words[w] = list()
+                    words[w].append(concept)
+            self.word_to_concept.append(words)
+
     def __getitem__(self, item):
         return self.alignment[item]
 
@@ -28,7 +38,8 @@ class Alignment(object):
                     for a in alignment_list:
                         if a[-1] not in alignment[-1]:
                             alignment[-1][a[-1]] = list()
-                        alignment[-1][a[-1]].append(toks[alignment_list[a].indices[0]])
+                        alignment[-1][a[-1]
+                                      ].append(toks[alignment_list[a].indices[0]])
         return cls(sentences, alignment)
 
     @classmethod
@@ -57,6 +68,7 @@ class Alignment(object):
         return cls(sentences, alignment)
 
     def get_sentence_position(self, sentence):
+        sentence = sentence.lower()
         for i, sent in enumerate(self.sentences):
             if sent == sentence:
                 return i
@@ -66,5 +78,12 @@ class Alignment(object):
         idx = self.get_sentence_position(sentence)
         if idx:
             return self.alignment[idx]
+        else:
+            return None
+
+    def get_reverse_alignments(self, sentence):
+        idx = self.get_sentence_position(sentence)
+        if idx:
+            return self.word_to_concept[idx]
         else:
             return None
