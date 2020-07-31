@@ -5,6 +5,7 @@ import penman
 
 class Document(object):
     """Class that reads a file with AMR graphs in penman notation"""
+    doc_item = namedtuple('DocumentSent', ['id', 'snt', 'amr'])
 
     def __init__(self, corpus):
         self.corpus = corpus
@@ -19,15 +20,14 @@ class Document(object):
 
     @classmethod
     def read(cls, corpus_path):
-        doc_item = namedtuple('DocumentSent', ['id', 'snt', 'amr'])
         corpus = list()
         with open(corpus_path, encoding='utf-8') as corpusfile:
             corpusstr = corpusfile.read()
         for penman_g in penman.loads(corpusstr):
             amr = AMR.load_penman(penman_g)
-            corpus.append(doc_item(penman_g.metadata['id'],
-                                   penman_g.metadata['snt'],
-                                   amr))
+            corpus.append(cls.doc_item(penman_g.metadata['id'],
+                                       penman_g.metadata['snt'],
+                                       amr))
         return cls(corpus)
 
     def merge_graphs(self, collapse_ner=False, collapse_date=False):

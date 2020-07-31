@@ -1,4 +1,5 @@
 import argparse
+from importlib import import_module
 from src.document import Document
 
 parser = argparse.ArgumentParser(
@@ -13,7 +14,12 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-__import__('src.methods.' + args.method)
+corpus_path = '../Corpora/OpiSums-PT/Textos_AMR/O-Apanhador-no-Campo-de-Centeio/O-Apanhador-no-Campo-de-Centeio.parsed'
+alignment_path = '../Corpora/AMR-PT-OP/AMR-PT-OP-MANUAL/AMR_Aligned.keep'
+
+method = import_module('src.methods.' + args.method)
+summary_graph = method.run(corpus_path, alignment_path)
+print(summary_graph)
 
 # if args.method == 'DohareEtAl2017':
 #     from literature import DohareEtal2017

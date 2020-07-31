@@ -33,12 +33,23 @@ class Alignment(object):
 
                     alignment.append(dict())
                     amr_string = file_.readline()
-                    alignment_list = penman.surface.alignments(
-                        penman.loads(amr_string)[0])
+                    amr = penman.loads(amr_string)[0]
+
+                    # Node alignments
+                    alignment_list = penman.surface.alignments(amr)
                     for a in alignment_list:
                         if a[-1] not in alignment[-1]:
                             alignment[-1][a[-1]] = list()
                         alignment[-1][a[-1]
+                                      ].append(toks[alignment_list[a].indices[0]])
+
+                    # Role alignments
+                    alignment_list = penman.surface.role_alignments(amr)
+                    for a in alignment_list:
+                        s, l, t = a
+                        if (s, t, l) not in alignment[-1]:
+                            alignment[-1][(s, t, l)] = list()
+                        alignment[-1][(s, t, l)
                                       ].append(toks[alignment_list[a].indices[0]])
         return cls(sentences, alignment)
 
@@ -51,7 +62,7 @@ class Alignment(object):
             for line in file_:
                 if line.startswith('# ::snt'):
                     cur_sent = line.lstrip('# ::snt ').rstrip()
-                    sentences.append(cur_sent)
+                    sentences.append(cur_sent.lower())
                     alignment.append(dict())
                 elif line.startswith('# ::tok'):
                     cur_toks = line.lstrip('# ::tok ').rstrip().split()

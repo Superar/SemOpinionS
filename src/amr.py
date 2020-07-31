@@ -1,6 +1,7 @@
 import penman
 import networkx as nx
 import matplotlib.pyplot as plt
+from itertools import combinations
 
 
 class AMR(nx.MultiDiGraph):
@@ -76,7 +77,7 @@ class AMR(nx.MultiDiGraph):
             return self.nodes[node]['label']
         except KeyError:
             return node
-    
+
     def get_label_node(self, label):
         for n in self.nodes:
             try:
@@ -152,23 +153,17 @@ class AMR(nx.MultiDiGraph):
 
         return merge_graph
 
-    def draw(self, path='amr.pdf', highlight_path=[]):
-        if highlight_path:
-            for i, n in enumerate(highlight_path):
+    def draw(self, path='amr.pdf', highlight_subgraph=[]):
+        if highlight_subgraph:
+            for n in highlight_subgraph:
                 self.nodes[n]['color'] = 'red'
-                if i < len(highlight_path) - 1:
-                    for s, t, l in self.to_undirected().edges(n, data=True):
-                        if t == highlight_path[i+1]:
-                            try:
-                                self.edges[s, t, l['label']]['color'] = 'red'
-                            except KeyError:
-                                # Inverse direction
-                                self.edges[t, s, l['label']]['color'] = 'red'
+            for e in self.subgraph(highlight_subgraph).edges:
+                self.edges[e]['color'] = 'red'
 
         pydot_graph = nx.drawing.nx_pydot.to_pydot(self)
         pydot_graph.write_pdf(prog='dot', path=path)
 
-        if highlight_path:
+        if highlight_subgraph:
             for n, d in self.nodes(data=True):
                 if 'color' in d:
                     del self.nodes[n]['color']
@@ -251,7 +246,7 @@ class AMR(nx.MultiDiGraph):
         for n in self.get_concept_nodes():
             if self.nodes[n]['label'].startswith('DATE:'):
                 data = self.nodes[n]['label'].lstrip('DATE:').split(':')
-                
+
                 self.nodes[n]['label'] = 'date-entity'
 
                 for d in data:
@@ -265,4 +260,3 @@ class AMR(nx.MultiDiGraph):
                         # All other nodes are constants
                         self.add_node(val)
                         self.add_edge(n, val, rel, label=rel)
-                        
