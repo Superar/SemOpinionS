@@ -2,9 +2,9 @@ from ..document import Document
 from ..alignment import Alignment
 from collections import Counter
 from itertools import combinations
+from ortools.linear_solver import pywraplp
 import pandas as pd
 import numpy as np
-
 
 def expand_graph(graph, corpus):
     for _, _, amr in corpus:
@@ -273,6 +273,84 @@ def get_edge_features(merged_graph, data, nodes_features):
 
     return pd.DataFrame(features, index=features_names, dtype=np.float32).T
 
+def ilp_optimisation(node_features, edge_features, top):
+    nodes_weights = np.random.rand(node_features.shape[1])
+    nodes_scores = np.dot(node_features, nodes_weights)
+    edge_weights = np.random.rand(edge_features.shape[1])
+    edge_scores = np.dot(edge_features, edge_weights)
+
+    solver = pywraplp.Solver('LiaoEtAl2018',
+                             pywraplp.Solver.CBC_MIXED_INTEGER_PROGRAMMING)
+    nodes_var = {n: solver.IntVar(0, 1, 'node[{}]'.format(n))
+                 for n, _ in node_features.iterrows()}
+    edges_var = {e: solver.IntVar(0, 1, 'edge[{}]'.format(e))
+                 for e, _ in edge_features.iterrows()}
+    flow_var = {(n1, n2): solver.IntVar(0, solver.Infinity(), 'flow[{}]'.format((n1, n2)))
+                for n1, _ in node_features.iterrows()
+                for n2, _ in node_features.iterrows()}
+
+    # Constraints
+    # If an edge is selected, both nodes have to be selected too
+    for s, t in edges_var:
+        edge_s_ct = solver.Constraint(
+            0, 1, 'ct_edge[{}][{}]'.format((s, t), s))
+        edge_s_ct.SetCoefficient(nodes_var[s], 1)
+        edge_s_ct.SetCoefficient(edges_var[(s, t)], -1)
+
+        if t != s:
+            # Loops have only one constraint
+            edge_t_ct = solver.Constraint(
+                0, 1, 'ct_edge[{}][{}]'.format((s, t), t))
+            edge_t_ct.SetCoefficient(nodes_var[t], 1)
+            edge_t_ct.SetCoefficient(edges_var[(s, t)], -1)
+
+    # Connectivity
+    root_flow_ct = solver.Constraint(0, 0, 'root_flow_ct')
+    for n, _ in node_features.iterrows():
+        root_flow_ct.SetCoefficient(nodes_var[n], -1)
+        root_flow_ct.SetCoefficient(flow_var[(top, n)], 1)
+
+        # flow_consumption_ct = solver.Constraint(0, 0,
+        #                                         'flow_consumption[{}]'.format(n))
+        # for n2, _ in node_features.iterrows():
+        #     # Incoming flow
+        #     flow_consumption_ct.SetCoefficient(flow_var[(n2, n)], 1)
+        #     # Outgoing flow
+        #     flow_consumption_ct.SetCoefficient(flow_var[(n, n2)], -1)
+        # flow_consumption_ct.SetCoefficient(nodes_var[n], -1)
+
+    for e, _ in edge_features.iterrows():
+        edge_flow_ct = solver.Constraint(0, solver.infinity(),
+                                         'edge_flow[{}]'.format(e))
+        edge_flow_ct.SetCoefficient(edges_var[e], node_features.shape[0])
+        edge_flow_ct.SetCoefficient(flow_var[e], -1)
+
+    # Force tree structure
+    tree_ct = dict()
+    for n, _ in node_features.iterrows():
+        tree_ct[n] = solver.Constraint(0, 1, 'tree[{}]'.format(n))
+
+    for (s, t), _ in edge_features.iterrows():
+        tree_ct[t].SetCoefficient(edges_var[(s, t)], 1)
+
+    # Objective
+    obj = solver.Objective()
+    obj.SetMaximization()
+
+    for i, v in enumerate(nodes_var):
+        obj.SetCoefficient(nodes_var[v], nodes_scores[i])
+    for i, v in enumerate(edges_var):
+        obj.SetCoefficient(edges_var[v], edge_scores[i])
+
+    print(solver.NumConstraints())
+    status = solver.Solve()
+    # print([nodes_var[x].solution_value() for x in nodes_var])
+    # print([flow_var[x].solution_value() for x in flow_var])
+
+    edges = [True if edges_var[e].solution_value() == 1.0 else False
+             for e, _ in edge_features.iterrows()]
+    return edge_features.loc[edges, :]
+
 
 def run(corpus, alignment, **kwargs):
     merged_graph = corpus.merge_graphs(collapse_ner=True, collapse_date=True)
@@ -282,4 +360,6 @@ def run(corpus, alignment, **kwargs):
     edge_features = get_edge_features(merged_graph,
                                       calculate_edge_data(corpus),
                                       nodes_features)
+    edges = ilp_optimisation(node_features, edge_features, merged_graph.get_top())
+    merged_graph.draw('merged_highlight.pdf', highlight_edges=[e for e, _ in edges.iterrows()])
     print(edge_features)
