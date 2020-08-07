@@ -6,6 +6,7 @@ from ortools.linear_solver import pywraplp
 import pandas as pd
 import numpy as np
 
+
 def expand_graph(graph, corpus):
     for _, _, amr in corpus:
         for node1 in amr.nodes:
