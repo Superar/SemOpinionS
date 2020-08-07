@@ -1,6 +1,10 @@
 import argparse
+import os
+import re
 from importlib import import_module
 from src.document import Document
+from src.alignment import Alignment
+from src.openie import OpenIE
 
 parser = argparse.ArgumentParser(
     description='SemOpinionS - Semantic Opinion Summarization'
@@ -12,24 +16,97 @@ parser.add_argument(
     required=True
 )
 
+parser.add_argument(
+    '--corpus', '-c',
+    help='AMR parsed corpus to be summarized',
+    required=True
+)
+
+parser.add_argument(
+    '--gold', '-g',
+    help='Gold summary corpus to evaluate',
+    required=False
+)
+
+parser.add_argument(
+    '--alignment', '-a',
+    help='Alignment file',
+    required=False
+)
+
+parser.add_argument(
+    '--alignment_format', '-af',
+    help='Alignment file format to enable reading',
+    required=False,
+    choices=['giza', 'jamr']
+)
+
+parser.add_argument(
+    '--openie', '-oie',
+    help='OpenIE triples csv file path',
+    required=False
+)
+
+parser.add_argument(
+    '--tfidf', '-t',
+    help='File to a large corpus from which to calculate TF-IDF counts',
+    required=False
+)
+
+parser.add_argument(
+    '--output', '-o',
+    help='Output directory',
+    required=True
+)
+
 args = parser.parse_args()
 
-corpus_path = '../Corpora/OpiSums-PT/Textos_AMR/O-Apanhador-no-Campo-de-Centeio/O-Apanhador-no-Campo-de-Centeio.parsed'
-alignment_path = '../Corpora/AMR-PT-OP/AMR-PT-OP-MANUAL/AMR_Aligned.keep'
+if args.alignment and not args.alignment_format:
+    parser.error(
+        'Please provide alignment file format (--alignment_format/-af)')
+
+if not os.path.exists(args.output):
+    os.mkdir(args.output)
+
+# Run summarization method
+corpus = Document.read(args.corpus)
+
+if args.alignment_format == 'giza':
+    alignment = Alignment.read_giza(args.alignment)
+else:
+    alignment = Alignment.read_jamr(args.alignment)
+
+kwargs = dict()
+if args.openie:
+    open_ie = OpenIE.read_csv(args.openie)
+    kwargs['open_ie'] = open_ie
+if args.tfidf:
+    kwargs['tf_idf_corpus_path'] = args.tfidf
 
 method = import_module('src.methods.' + args.method)
-summary_graph = method.run(corpus_path, alignment_path)
-print(summary_graph)
+summary_graph = method.run(corpus, alignment, **kwargs)
 
-# if args.method == 'DohareEtAl2017':
-#     from literature import DohareEtal2017
+# Save summarization result
+save_summary_path = os.path.join(args.output, args.method)
+with open(save_summary_path, 'w', encoding='utf-8') as file_:
+    file_.write(str(summary_graph))
 
-# r = Document.read('D:\Documentos\Mestrado\Pesquisa\Corpora\OpiSums-PT\Textos_AMR\Iphone-5\Iphone-5.parsed')
-
-# merge_graph = r.merge_graphs()
-# merge_graph.draw()
-# merge_digraph = merge_graph.as_weighted_DiGraph()
-
-# score = sorted(nx.pagerank(merge_digraph).items(), key=itemgetter(1), reverse=True)
-# nodes = [n for n, _ in score[:10]]
-# summary_graph = merge_graph.subgraph(nodes)
+# Write evaluation files
+if args.gold:
+    for filename in os.listdir(args.gold):
+        filepath = os.path.join(args.gold, filename)
+        summary_sents = list()
+        with open(filepath, encoding='utf-8') as file_:
+            for sent in file_:
+                # Sentence ID between <>
+                info = re.search(r'<([^>]+)>', sent)
+                if info is not None:
+                    id_ = info.group(1)
+                    sent_amr = corpus[id_]
+                    if sent_amr is not None:
+                        summary_sents.append(sent_amr)
+        summary_corpus = Document(summary_sents)
+        gold_summary_graph = summary_corpus.merge_graphs()
+        save_summary_path = os.path.join(args.output, filename)
+        with open(save_summary_path, 'w', encoding='utf-8') as file_:
+            file_.write(str(gold_summary_graph))

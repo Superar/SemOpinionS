@@ -3,8 +3,6 @@ import tempfile
 import networkx as nx
 import numpy as np
 from ..document import Document
-from ..alignment import Alignment
-from ..openie import OpenIE
 from nltk import word_tokenize
 from sklearn.feature_extraction.text import CountVectorizer
 from collections import Counter, namedtuple
@@ -119,13 +117,11 @@ def get_important_paths(corpus, important_concepts):
                 break
     return selected_data
 
-def expand_paths(corpus, alignment, selected_data, open_ie_path):
+def expand_paths(corpus, alignment, selected_data, open_ie):
     # Expand selected paths using OpenIE tuples
     expanded_data = list()  # Of tuples (sent_id, expanded_path)
     for _, _, sent_id, path in selected_data:
-        prod, doc, sent = sent_id.split('.')
-        triples_path = os.path.join(open_ie_path, prod, doc) + '.csv'
-        triples = OpenIE.read_csv(triples_path).get_triples(int(sent)+1)
+        triples = open_ie.get_triples(sent_id)
 
         path_concepts = [corpus[sent_id].amr.get_node_label(c) for c in path]
         snt_alignments = alignment.get_alignments(corpus[sent_id].snt)
@@ -161,12 +157,13 @@ def expand_paths(corpus, alignment, selected_data, open_ie_path):
                             if c_node is not None:
                                 expanded_path.add(c_node)
         else:
-            # Retornar o AMR da sentenca
+            # Return the whole sentence AMR
             expanded_path = set(corpus[sent_id].amr.nodes())
 
         # Expand selected subgraph to ensure connectivity
         undirected = nx.Graph(corpus[sent_id].amr)
         weighted_graph = nx.Graph()
+        weighted_graph.add_nodes_from(expanded_path)
         weighted_graph.add_edges_from(
             undirected.subgraph(expanded_path).edges, weight=1)
 
@@ -197,17 +194,14 @@ def get_summary_graph(corpus, expanded_data):
     summary_graph = summary_doc.merge_graphs()
     return summary_graph
 
-def run(corpus_path, alignment_path):
-    # Read corpus
-    corpus = Document.read(corpus_path)
-    alignment = Alignment.read_giza(alignment_path)
-    open_ie_path = '../Corpora/OpenIEOut'
-    tf_idf_corpus_path = '../Corpora/Reviews/corpus'
+def run(corpus, alignment, **kwargs):
+    open_ie = kwargs.get('open_ie')
+    tf_idf_corpus_path = kwargs.get('tf_idf_corpus_path')
 
     tf_idf = get_tf_idf(corpus, tf_idf_corpus_path)
     merged_graph, concept_alignments = preprocess(corpus, alignment)
     important_concepts = score_concepts(merged_graph, tf_idf, concept_alignments)
     selected_paths = get_important_paths(corpus, important_concepts)
-    expanded_paths = expand_paths(corpus, alignment, selected_paths, open_ie_path)
+    expanded_paths = expand_paths(corpus, alignment, selected_paths, open_ie)
     summary_graph = get_summary_graph(corpus, expanded_paths)
     return summary_graph

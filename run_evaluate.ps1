@@ -1,0 +1,7 @@
+.\evaluate.ps1 -test .\out\Galaxy-SIII\DohareEtAl2018 -gold .\out\Galaxy-SIII\SumarioExtrativo_1.txt,.\out\Galaxy-SIII\SumarioExtrativo_2.txt,.\out\Galaxy-SIII\SumarioExtrativo_3.txt,.\out\Galaxy-SIII\SumarioExtrativo_4.txt,.\out\Galaxy-SIII\SumarioExtrativo_5.txt
+
+.\evaluate.ps1 -test .\out\Iphone-5\DohareEtAl2018 -gold .\out\Iphone-5\SumarioExtrativo_1.txt,.\out\Iphone-5\SumarioExtrativo_2.txt,.\out\Iphone-5\SumarioExtrativo_3.txt,.\out\Iphone-5\SumarioExtrativo_4.txt,.\out\Iphone-5\SumarioExtrativo_5.txt
+
+.\evaluate.ps1 -test .\out\O-Apanhador-no-Campo-de-Centeio\DohareEtAl2018 -gold .\out\O-Apanhador-no-Campo-de-Centeio\SumarioExtrativo_1.txt,.\out\O-Apanhador-no-Campo-de-Centeio\SumarioExtrativo_2.txt,.\out\O-Apanhador-no-Campo-de-Centeio\SumarioExtrativo_3.txt,.\out\O-Apanhador-no-Campo-de-Centeio\SumarioExtrativo_4.txt,.\out\O-Apanhador-no-Campo-de-Centeio\SumarioExtrativo_5.txt
+
+.\evaluate.ps1 -test .\out\O-Outro-Lado-da-Meia-Noite\DohareEtAl2018 -gold .\out\O-Outro-Lado-da-Meia-Noite\SumarioExtrativo_1.txt,.\out\O-Outro-Lado-da-Meia-Noite\SumarioExtrativo_2.txt,.\out\O-Outro-Lado-da-Meia-Noite\SumarioExtrativo_3.txt,.\out\O-Outro-Lado-da-Meia-Noite\SumarioExtrativo_4.txt,.\out\O-Outro-Lado-da-Meia-Noite\SumarioExtrativo_5.txt

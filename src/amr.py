@@ -24,11 +24,25 @@ class AMR(nx.MultiDiGraph):
         return penman.encode(self.as_penman_graph())
 
     def as_penman_graph(self, keep_top_edges=False):
-        if keep_top_edges:
-            triples = [(s, r, t) for (s, t, r) in self.edges]
-        else:
-            triples = [(s, r, t) for (s, t, r) in self.edges if r != ':TOP']
-        for var in self.variables():
+        defined_variables = set()
+        triples = list()
+        for s, t, r in self.edges:
+            if r != ':TOP':
+                triples.append((s, r, t))
+
+                # Add variables included in the edge
+                if s in self.variables() and s not in defined_variables:
+                    triples.append((s, ':instance', self.nodes[s]['label']))
+                    defined_variables.add(s)
+                if t in self.variables() and t not in defined_variables:
+                    triples.append((t, ':instance', self.nodes[t]['label']))
+                    defined_variables.add(t)
+            elif keep_top_edges:
+                # Only add :TOP edges if flag is up
+                triples.append((s, r, t))
+        
+        # Add remaining variables
+        for var in self.variables() - defined_variables:
             triples.append((var, ':instance', self.nodes[var]['label']))
         return penman.Graph(triples=triples, top=self.get_top())
 
