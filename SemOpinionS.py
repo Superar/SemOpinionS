@@ -48,6 +48,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    '--tfidf', '-t',
+    help='File to a large corpus from which to calculate TF-IDF counts',
+    required=False
+)
+
+parser.add_argument(
     '--output', '-o',
     help='Output directory',
     required=True
@@ -70,11 +76,15 @@ if args.alignment_format == 'giza':
 else:
     alignment = Alignment.read_jamr(args.alignment)
 
+kwargs = dict()
 if args.openie:
     open_ie = OpenIE.read_csv(args.openie)
+    kwargs['open_ie'] = open_ie
+if args.tfidf:
+    kwargs['tf_idf_corpus_path'] = args.tfidf
 
 method = import_module('src.methods.' + args.method)
-summary_graph = method.run(corpus, alignment, open_ie=open_ie)
+summary_graph = method.run(corpus, alignment, **kwargs)
 
 # Save summarization result
 save_summary_path = os.path.join(args.output, args.method)

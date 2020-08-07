@@ -196,7 +196,7 @@ def get_summary_graph(corpus, expanded_data):
 
 def run(corpus, alignment, **kwargs):
     open_ie = kwargs.get('open_ie')
-    tf_idf_corpus_path = '../Corpora/Reviews/corpus'
+    tf_idf_corpus_path = kwargs.get('tf_idf_corpus_path')
 
     tf_idf = get_tf_idf(corpus, tf_idf_corpus_path)
     merged_graph, concept_alignments = preprocess(corpus, alignment)
