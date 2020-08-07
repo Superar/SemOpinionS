@@ -23,7 +23,6 @@ class Alignment(object):
     def read_giza(cls, filepath):
         sentences = list()
         alignment = list()
-        sent_num = 1
         with open(filepath, encoding='utf-8') as file_:
             for line in file_:
                 if line.startswith('#'):
@@ -87,14 +86,14 @@ class Alignment(object):
 
     def get_alignments(self, sentence):
         idx = self.get_sentence_position(sentence)
-        if idx:
+        if idx is not None:
             return self.alignment[idx]
         else:
             return None
 
     def get_reverse_alignments(self, sentence):
         idx = self.get_sentence_position(sentence)
-        if idx:
+        if idx is not None:
             return self.word_to_concept[idx]
         else:
             return None

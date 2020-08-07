@@ -12,7 +12,7 @@ class OpenIE(object):
                          usecols=[0, 2, 3, 4, 5],
                          names=['sent_id', 'triple_id', 'arg0', 'rel', 'arg1'],
                          skiprows=1, encoding='utf-8')
-        df['sent_id'] = df['sent_id'].ffill().astype(np.int)
+        df['sent_id'] = df['sent_id'].ffill()
         df['words'] = (df['arg0'] + ' ' + df['rel'] + ' ' + # Unique words in the whole triple
                        df['arg1']).fillna('').str.split()
         df['vocab'] = df['words'].apply(set)

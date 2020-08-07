@@ -16,7 +16,10 @@
             "type": "python",
             "request": "launch",
             "program": "SemOpinionS.py",
-            "args": ["-m", "DohareEtAl2017"],
+            "args": [
+                "-m",
+                "DohareEtAl2017"
+            ],
             "console": "integratedTerminal"
         },
         {
@@ -24,7 +27,22 @@
             "type": "python",
             "request": "launch",
             "program": "SemOpinionS.py",
-            "args": ["-m", "DohareEtAl2018"],
+            "args": [
+                "-m",
+                "DohareEtAl2018",
+                "-c",
+                "../Corpora/OpiSums-PT/Textos_AMR/O-Outro-Lado-da-Meia-Noite/O-Outro-Lado-da-Meia-Noite.parsed",
+                "-g",
+                "../Corpora/OpiSums-PT/Sumarios/O-Outro-Lado-da-Meia-Noite/Extrativos",
+                "-a",
+                "../Corpora/AMR-PT-OP/AMR-PT-OP-PARSER/AMR_Aligned.keep",
+                "-af",
+                "giza",
+                "-oie",
+                "../Corpora/OpenIEOut/O-Outro-Lado-da-Meia-Noite/merged_documents_new.csv",
+                "-o",
+                "out/O-Outro-Lado-da-Meia-Noite"
+            ],
             "console": "integratedTerminal"
         },
         {
@@ -32,7 +50,10 @@
             "type": "python",
             "request": "launch",
             "program": "SemOpinionS.py",
-            "args": ["-m", "clustering"],
+            "args": [
+                "-m",
+                "clustering"
+            ],
             "console": "integratedTerminal"
         },
         {
@@ -40,7 +61,10 @@
             "type": "python",
             "request": "launch",
             "program": "SemOpinionS.py",
-            "args": ["-m", "LiaoEtAl2018"],
+            "args": [
+                "-m",
+                "LiaoEtAl2018"
+            ],
             "console": "integratedTerminal"
         }
     ]
