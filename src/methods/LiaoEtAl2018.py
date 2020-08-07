@@ -5,10 +5,6 @@ from itertools import combinations
 import pandas as pd
 import numpy as np
 
-corpus = Document.read(
-    '..\\Corpora\\OpiSums-PT\\Textos_AMR\\O-Apanhador-no-Campo-de-Centeio\\O-Apanhador-no-Campo-de-Centeio.parsed')
-alignments = Alignment.read_jamr('..\\corpora\\AMR-PT-OP\\SPAN-MANUAL\\combined_manual_jamr.txt')
-
 
 def expand_graph(graph, corpus):
     for _, _, amr in corpus:
@@ -58,8 +54,10 @@ def calculate_node_data(corpus, alignment):
                 span_lengths[node_label] = list()
 
             # Alignment for NER nodes is obtained from the first name (op1)
-            aligned_concept = node_label.split('.')[2] if node_label.startswith('NER:') else node_label
-            span_lengths[node_label].append(len(doc_alignment[aligned_concept]))
+            aligned_concept = node_label.split(
+                '.')[2] if node_label.startswith('NER:') else node_label
+            span_lengths[node_label].append(
+                len(doc_alignment[aligned_concept]))
     return node_counts, node_depths, node_positions, span_lengths
 
 
@@ -122,7 +120,7 @@ def get_node_features(amr, data):
                 1.0/len(node_positions[node_label])
             pos = 1.0 if avg_pos >= t else 0.0
             features[node].append(pos)
-        
+
         # lngst_span_0, lngst_span_1, lngst_span_2, lngst_span_5, lngst_span_10
         for t in [0, 1, 2, 5, 10]:
             span = 1.0 if max(span_lengths[node_label]) >= t else 0.0
@@ -189,7 +187,7 @@ def get_edge_features(merged_graph, data, nodes_features):
     features_names.extend(node2_names)
     features_names.extend(['expansion',
                            'exp_freq_0', 'exp_freq_1', 'exp_freq_2', 'exp_freq_5', 'exp_freq_10',
-                            'bias'])
+                           'bias'])
 
     # Get all edges between each pair of nodes
     edges = dict()
@@ -276,10 +274,12 @@ def get_edge_features(merged_graph, data, nodes_features):
     return pd.DataFrame(features, index=features_names, dtype=np.float32).T
 
 
-merged_graph = corpus.merge_graphs(collapse_ner=True, collapse_date=True)
-expand_graph(merged_graph, corpus)
-nodes_features = get_node_features(merged_graph,
-                                   calculate_node_data(corpus, alignments))
-edge_features = get_edge_features(merged_graph,
-                                  calculate_edge_data(corpus),
-                                  nodes_features)
+def run(corpus, alignment, **kwargs):
+    merged_graph = corpus.merge_graphs(collapse_ner=True, collapse_date=True)
+    expand_graph(merged_graph, corpus)
+    nodes_features = get_node_features(merged_graph,
+                                       calculate_node_data(corpus, alignment))
+    edge_features = get_edge_features(merged_graph,
+                                      calculate_edge_data(corpus),
+                                      nodes_features)
+    print(edge_features)
