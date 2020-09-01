@@ -167,17 +167,25 @@ class AMR(nx.MultiDiGraph):
 
         return merge_graph
 
-    def draw(self, path='amr.pdf', highlight_subgraph=[]):
-        if highlight_subgraph:
-            for n in highlight_subgraph:
+    def draw(self, path='amr.pdf', highlight_subgraph_nodes=[], highlight_subgraph_edges=[]):
+        if highlight_subgraph_nodes:
+            for n in highlight_subgraph_nodes:
                 self.nodes[n]['color'] = 'red'
-            for e in self.subgraph(highlight_subgraph).edges:
+            for e in self.subgraph(highlight_subgraph_nodes).edges:
                 self.edges[e]['color'] = 'red'
+        
+        if highlight_subgraph_edges:
+            for s, t in highlight_subgraph_edges:
+                self.nodes[s]['color'] = 'red'
+                self.nodes[t]['color'] = 'red'
+                for e in self.out_edges([s], keys=True):
+                    if e[1] == t:
+                        self.edges[e]['color'] = 'red'
 
         pydot_graph = nx.drawing.nx_pydot.to_pydot(self)
         pydot_graph.write_pdf(prog='dot', path=path)
 
-        if highlight_subgraph:
+        if highlight_subgraph_nodes or highlight_subgraph_edges:
             for n, d in self.nodes(data=True):
                 if 'color' in d:
                     del self.nodes[n]['color']
