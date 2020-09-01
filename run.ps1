@@ -4,7 +4,7 @@ python .\SemOpinionS.py -m DohareEtAl2018 `
     -a ..\Corpora\AMR-PT-OP\AMR-PT-OP-MANUAL\AMR_Aligned.keep `
     -af giza `
     -oie ..\Corpora\OpenIEOut\O-Apanhador-no-Campo-de-Centeio\merged_documents_new.csv `
-    -t ..\Corpora\Reviews\ReLi_textos `
+    --tfidf ..\Corpora\Reviews\ReLi_textos `
     -o out\O-Apanhador-no-Campo-de-Centeio
 
 python .\SemOpinionS.py -m DohareEtAl2018 `
@@ -13,7 +13,7 @@ python .\SemOpinionS.py -m DohareEtAl2018 `
     -a ..\Corpora\AMR-PT-OP\AMR-PT-OP-MANUAL\AMR_Aligned.keep `
     -af giza `
     -oie ..\Corpora\OpenIEOut\Iphone-5\merged_documents_new.csv `
-    -t ..\Corpora\Reviews\b2w-reviews01_textos `
+    --tfidf ..\Corpora\Reviews\b2w-reviews01_textos `
     -o out\Iphone-5
 
 python .\SemOpinionS.py -m DohareEtAl2018 `
@@ -22,7 +22,7 @@ python .\SemOpinionS.py -m DohareEtAl2018 `
     -a ..\Corpora\AMR-PT-OP\AMR-PT-OP-PARSER\AMR_Aligned.keep `
     -af giza `
     -oie ..\Corpora\OpenIEOut\O-Outro-Lado-da-Meia-Noite\merged_documents_new.csv `
-    -t ..\Corpora\Reviews\ReLi_textos `
+    --tfidf ..\Corpora\Reviews\ReLi_textos `
     -o out\O-Outro-Lado-da-Meia-Noite
 
 python .\SemOpinionS.py -m DohareEtAl2018 `
@@ -31,5 +31,5 @@ python .\SemOpinionS.py -m DohareEtAl2018 `
     -a ..\Corpora\AMR-PT-OP\AMR-PT-OP-PARSER\AMR_Aligned.keep `
     -af giza `
     -oie ..\Corpora\OpenIEOut\Galaxy-SIII\merged_documents_new.csv `
-    -t ..\Corpora\Reviews\b2w-reviews01_textos `
+    --tfidf ..\Corpora\Reviews\b2w-reviews01_textos `
     -o out\Galaxy-SIII

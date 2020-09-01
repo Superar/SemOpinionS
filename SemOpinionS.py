@@ -48,7 +48,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '--tfidf', '-t',
+    '--tfidf',
     help='File to a large corpus from which to calculate TF-IDF counts',
     required=False
 )
@@ -57,6 +57,18 @@ parser.add_argument(
     '--output', '-o',
     help='Output directory',
     required=True
+)
+
+parser.add_argument(
+    '--training', '-t',
+    help='Training set inputs for some methods',
+    required=False
+)
+
+parser.add_argument(
+    '--target', '-tt',
+    help='Training set target (gold summaries) for some methods',
+    required=False
 )
 
 args = parser.parse_args()
@@ -82,6 +94,10 @@ if args.openie:
     kwargs['open_ie'] = open_ie
 if args.tfidf:
     kwargs['tf_idf_corpus_path'] = args.tfidf
+if args.training:
+    kwargs['training'] = args.training
+if args.target:
+    kwargs['target'] = args.target
 
 method = import_module('src.methods.' + args.method)
 summary_graph = method.run(corpus, alignment, **kwargs)

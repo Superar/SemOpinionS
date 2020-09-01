@@ -5,6 +5,8 @@ from itertools import combinations
 from ortools.linear_solver import pywraplp
 import pandas as pd
 import numpy as np
+import os
+import re
 
 
 def expand_graph(graph, corpus):
@@ -65,15 +67,15 @@ def calculate_node_data(corpus, alignment):
 def get_node_features(amr, data):
     node_counts, node_depths, node_positions, span_lengths = data
     features_names = ['concept',
-                      'freq_0', 'freq_1', 'freq_2', 'freq_5', 'freq_10',
+                      'n_freq_0', 'n_freq_1', 'n_freq_2', 'n_freq_5', 'n_freq_10',
                       'min_depth_1', 'min_depth_2', 'min_depth_3', 'min_depth_4', 'min_depth_5',
                       'avg_depth_1', 'avg_depth_2', 'avg_depth_3', 'avg_depth_4', 'avg_depth_5',
-                      'fmst_pos_5', 'fmst_pos_6', 'fmst_pos_7', 'fmst_pos_10', 'fmst_pos_15',
-                      'avg_pos_5', 'avg_pos_6', 'avg_pos_7', 'avg_pos_10', 'avg_pos_15',
+                      'n_fmst_pos_5', 'n_fmst_pos_6', 'n_fmst_pos_7', 'n_fmst_pos_10', 'n_fmst_pos_15',
+                      'n_avg_pos_5', 'n_avg_pos_6', 'n_avg_pos_7', 'n_avg_pos_10', 'n_avg_pos_15',
                       'lngst_span_0', 'lngst_span_1', 'lngst_span_2', 'lngst_span_5', 'lngst_span_10',
                       'avg_span_0', 'avg_span_1', 'avg_span_2', 'avg_span_5', 'avg_span_10',
                       'ner', 'date',
-                      'bias']
+                      'n_bias']
     features = dict()
 
     for node in amr.nodes():
@@ -177,9 +179,9 @@ def get_edge_features(merged_graph, data, nodes_features):
     edge_counts, edge_positions = data
     features_names = ['label_1_05', 'label_1_066', 'label_1_075',
                       'label_2_05', 'label_2_066', 'label_2_075',
-                      'freq_0', 'freq_1', 'freq_2', 'freq_5', 'freq_10',
-                      'fmst_pos_5', 'fmst_pos_6', 'fmst_pos_7', 'fmst_pos_10', 'fmst_pos_15',
-                      'avg_pos_5', 'avg_pos_6', 'avg_pos_7', 'avg_pos_10', 'avg_pos_15']
+                      'e_freq_0', 'e_freq_1', 'e_freq_2', 'e_freq_5', 'e_freq_10',
+                      'e_fmst_pos_5', 'e_fmst_pos_6', 'e_fmst_pos_7', 'e_fmst_pos_10', 'e_fmst_pos_15',
+                      'e_avg_pos_5', 'e_avg_pos_6', 'e_avg_pos_7', 'e_avg_pos_10', 'e_avg_pos_15']
     node1_names = nodes_features.add_prefix(
         'node1_').columns[nodes_features.columns != 'bias']
     node2_names = nodes_features.add_prefix(
@@ -188,7 +190,7 @@ def get_edge_features(merged_graph, data, nodes_features):
     features_names.extend(node2_names)
     features_names.extend(['expansion',
                            'exp_freq_0', 'exp_freq_1', 'exp_freq_2', 'exp_freq_5', 'exp_freq_10',
-                           'bias'])
+                           'e_bias'])
 
     # Get all edges between each pair of nodes
     edges = dict()
@@ -274,11 +276,10 @@ def get_edge_features(merged_graph, data, nodes_features):
 
     return pd.DataFrame(features, index=features_names, dtype=np.float32).T
 
-def ilp_optimisation(node_features, edge_features, top):
-    nodes_weights = np.random.rand(node_features.shape[1])
-    nodes_scores = np.dot(node_features, nodes_weights)
-    edge_weights = np.random.rand(edge_features.shape[1])
-    edge_scores = np.dot(edge_features, edge_weights)
+
+def ilp_optimisation(node_features, edge_features, weights, top, nodes_cost=0, edge_cost=0):
+    nodes_scores = np.dot(node_features, weights) + nodes_cost
+    edge_scores = np.dot(edge_features, weights) + edge_cost
 
     solver = pywraplp.Solver('LiaoEtAl2018',
                              pywraplp.Solver.CBC_MIXED_INTEGER_PROGRAMMING)
@@ -305,26 +306,40 @@ def ilp_optimisation(node_features, edge_features, top):
             edge_t_ct.SetCoefficient(nodes_var[t], 1)
             edge_t_ct.SetCoefficient(edges_var[(s, t)], -1)
 
+        # Select at most one edge between two nodes
+        # If there is more than one direction between the nodes
+        if (t, s) in edges_var:
+            self_loop_ct = solver.Constraint(
+                0, 1, 'ct_self_loop[{}][{}]'.format(s, t))
+            self_loop_ct.SetCoefficient(edges_var[(s, t)], 1)
+            self_loop_ct.SetCoefficient(edges_var[(t, s)], 1)
+
     # Connectivity
     root_flow_ct = solver.Constraint(0, 0, 'root_flow_ct')
     for n, _ in node_features.iterrows():
-        root_flow_ct.SetCoefficient(nodes_var[n], -1)
         root_flow_ct.SetCoefficient(flow_var[(top, n)], 1)
+        if n != top:
+            root_flow_ct.SetCoefficient(nodes_var[n], -1)
 
-        # flow_consumption_ct = solver.Constraint(0, 0,
-        #                                         'flow_consumption[{}]'.format(n))
-        # for n2, _ in node_features.iterrows():
-        #     # Incoming flow
-        #     flow_consumption_ct.SetCoefficient(flow_var[(n2, n)], 1)
-        #     # Outgoing flow
-        #     flow_consumption_ct.SetCoefficient(flow_var[(n, n2)], -1)
-        # flow_consumption_ct.SetCoefficient(nodes_var[n], -1)
+            flow_consumption_ct = solver.Constraint(0, 0,
+                                                    'flow_consumption[{}]'.format(n))
+            for n2, _ in node_features.iterrows():
+                # Incoming flow
+                flow_consumption_ct.SetCoefficient(flow_var[(n2, n)], 1)
+                # Outgoing flow
+                if n2 != top:
+                    flow_consumption_ct.SetCoefficient(flow_var[(n, n2)], -1)
+            flow_consumption_ct.SetCoefficient(nodes_var[n], -1)
 
-    for e, _ in edge_features.iterrows():
-        edge_flow_ct = solver.Constraint(0, solver.infinity(),
-                                         'edge_flow[{}]'.format(e))
-        edge_flow_ct.SetCoefficient(edges_var[e], node_features.shape[0])
-        edge_flow_ct.SetCoefficient(flow_var[e], -1)
+    # Flow must go through a selected edge
+    for src, tgt in flow_var:
+        if tgt != top:
+            edge_flow_ct = solver.Constraint(0, solver.infinity(),
+                                             'edge_flow[{}]'.format((src, tgt)))
+            if (src, tgt) in edges_var:
+                edge_flow_ct.SetCoefficient(
+                    edges_var[(src, tgt)], nodes_scores.shape[0])
+            edge_flow_ct.SetCoefficient(flow_var[(src, tgt)], -1)
 
     # Force tree structure
     tree_ct = dict()
@@ -343,24 +358,124 @@ def ilp_optimisation(node_features, edge_features, top):
     for i, v in enumerate(edges_var):
         obj.SetCoefficient(edges_var[v], edge_scores[i])
 
-    print(solver.NumConstraints())
-    status = solver.Solve()
-    # print([nodes_var[x].solution_value() for x in nodes_var])
-    # print([flow_var[x].solution_value() for x in flow_var])
+    solver.Solve()
 
+    nodes = [True if nodes_var[n].solution_value() == 1.0 else False
+             for n, _ in node_features.iterrows()]
     edges = [True if edges_var[e].solution_value() == 1.0 else False
              for e, _ in edge_features.iterrows()]
-    return edge_features.loc[edges, :]
+    return node_features.loc[nodes, :], edge_features.loc[edges, :]
+
+
+def graph_local_representations(graph, node_data, edge_data):
+    nodes_features = get_node_features(graph, node_data)
+    edge_features = get_edge_features(graph, edge_data, nodes_features)
+    return pd.concat([nodes_features, edge_features], axis=0).fillna(0.0)
+
+
+def prepare_training_data(training_path, gold_path, alignment):
+    training_corpus = Document.read(training_path)
+    training_graph = training_corpus.merge_graphs(collapse_ner=True,
+                                                  collapse_date=True)
+    node_data = calculate_node_data(training_corpus, alignment)
+    edge_data = calculate_edge_data(training_corpus)
+
+    gold_summaries = list()
+    for filename in os.listdir(gold_path):
+        filepath = os.path.join(gold_path, filename)
+        summary_sents = list()
+        with open(filepath, encoding='utf-8') as file_:
+            for sent in file_:
+                # Sentence ID between <>
+                info = re.search(r'<([^>]+)>', sent)
+                if info is not None:
+                    id_ = info.group(1)
+                    sent_amr = training_corpus[id_]
+                    if sent_amr is not None:
+                        summary_sents.append(sent_amr)
+        summary_corpus = Document(summary_sents)
+        gold_summary_graph = summary_corpus.merge_graphs(collapse_ner=True,
+                                                         collapse_date=True)
+        sum_repr = graph_local_representations(gold_summary_graph,
+                                               node_data, edge_data)
+        gold_summaries.append(sum_repr)
+
+    train_repr = graph_local_representations(training_graph,
+                                             node_data, edge_data)
+
+    # Ensure all representations have the same columns
+    all_columns = train_repr.append(gold_summaries).columns.tolist()
+    train_repr = train_repr.reindex(columns=all_columns, fill_value=0.0)
+    summaries_repr = list()
+    for s in gold_summaries:
+        summaries_repr.append(s.reindex(columns=all_columns, fill_value=0.0))
+
+    return train_repr, summaries_repr, training_graph.get_top()
+
+
+def update_weights(weights, train, gold, top, loss='perceptron'):
+    train_nodes = train.loc[train['n_bias'] == 1.0, :]
+    train_edges = train.loc[train['e_bias'] == 1.0, :]
+
+    if loss == 'perceptron':
+        gold_global = gold.sum(axis=0)
+
+        ilp_n, ilp_e = ilp_optimisation(train_nodes, train_edges, weights, top)
+
+        ilp_global = ilp_n.sum(axis=0) + ilp_e.sum(axis=0)
+        new_weights = weights + gold_global - ilp_global
+    elif loss == 'ramp':
+        cost_idx = train.index - gold.index
+        cost = pd.Series(0.0, index=train.index)
+        cost.loc[cost_idx] = 1.0
+
+        gold_n, gold_e = ilp_optimisation(train_nodes, train_edges, weights, top,
+                                          nodes_cost=-1 * cost.loc[train_nodes.index],
+                                          edge_cost=-1 * cost.loc[train_edges.index])
+        gold_global = gold_n.sum(axis=0) + gold_e.sum(axis=0)
+
+        ilp_n, ilp_e = ilp_optimisation(train_nodes, train_edges, weights, top,
+                                        nodes_cost=cost.loc[train_nodes.index],
+                                        edge_cost=cost.loc[train_edges.index])
+        ilp_global = ilp_n.sum(axis=0) + ilp_e.sum(axis=0)
+
+        # Adagrad
+        gradient = ilp_global - gold_global
+        eta = 1.0
+        epsilon = 1.0
+        learning_rate = eta / np.sqrt(np.sum(gradient ** 2) + epsilon)
+        new_weights = weights - learning_rate * gradient
+    return new_weights, gold_e, ilp_e
 
 
 def run(corpus, alignment, **kwargs):
+    training_path = kwargs.get('training')
+    gold_path = kwargs.get('target')
+    if not training_path or not gold_path:
+        raise ValueError(
+            'LiaoEtAl2018 method requires training and target arguments')
+
+    # Test
     merged_graph = corpus.merge_graphs(collapse_ner=True, collapse_date=True)
-    expand_graph(merged_graph, corpus)
-    nodes_features = get_node_features(merged_graph,
-                                       calculate_node_data(corpus, alignment))
-    edge_features = get_edge_features(merged_graph,
-                                      calculate_edge_data(corpus),
-                                      nodes_features)
-    edges = ilp_optimisation(node_features, edge_features, merged_graph.get_top())
-    merged_graph.draw('merged_highlight.pdf', highlight_edges=[e for e, _ in edges.iterrows()])
-    print(edge_features)
+    # expand_graph(merged_graph, corpus)
+    test_repr = graph_local_representations(merged_graph,
+                                            calculate_node_data(
+                                                corpus, alignment),
+                                            calculate_edge_data(corpus))
+    test_nodes = test_repr.loc[test_repr['n_bias'] == 1.0, :]
+    test_edges = test_repr.loc[test_repr['e_bias'] == 1.0, :]
+
+    # Train
+    train, gold, top_train = prepare_training_data(training_path, gold_path, alignment)
+    weights = np.ones(train.shape[1])
+    for i, g in enumerate(gold * 5):
+        weights, gold_e, ilp_e = update_weights(weights, train, g, top_train,
+                                                loss='ramp')
+
+        if (i + 1) % len(gold) == 0:
+            print('Epoch {}'.format((i + 1) // len(gold)))
+            sum_nodes, sum_edges = ilp_optimisation(test_nodes, test_edges,
+                                                    weights, merged_graph.get_top())
+            ex = [e for e, _ in sum_edges.iterrows()]
+            merged_graph.draw('merged_highlight_ramp_epoch_{}.pdf'.format((i + 1) // len(gold)),
+                            highlight_subgraph_edges=ex)
