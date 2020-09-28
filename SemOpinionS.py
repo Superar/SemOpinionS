@@ -2,6 +2,7 @@ import argparse
 import os
 import re
 from importlib import import_module
+from collections import Counter
 from src.document import Document
 from src.alignment import Alignment
 from src.openie import OpenIE
@@ -102,10 +103,35 @@ if args.target:
 method = import_module('src.methods.' + args.method)
 summary_graph = method.run(corpus, alignment, **kwargs)
 
-# Save summarization result
-save_summary_path = os.path.join(args.output, args.method)
+# Get alignments for each concept in the corpus
+concept_to_words = dict()
+for id_, snt, amr in corpus:
+    snt_alignment = alignment.get_alignments(snt)
+    for c in snt_alignment:
+        if c in concept_to_words:
+            concept_to_words[c].update(snt_alignment[c])
+        else:
+            concept_to_words[c] = Counter(snt_alignment[c])
+
+# Save summarization result graph
+save_summary_path = os.path.join(args.output, args.method + '.amr')
 with open(save_summary_path, 'w', encoding='utf-8') as file_:
     file_.write(str(summary_graph))
+
+# Save summary BOW from alignments
+summary_text = list()
+for n in summary_graph.get_concept_nodes():
+    concept = summary_graph.get_node_label(n)
+    if concept in concept_to_words:
+        summary_text.append(concept_to_words[concept].most_common(n=1)[0][0])
+for c in summary_graph.get_constant_nodes():
+    if c.startswith('"'):
+        summary_text.append(c.strip('"'))
+
+save_summary_text_path = os.path.join(args.output, args.method + '.bow')
+with open(save_summary_text_path, 'w', encoding='utf-8') as file_:
+    file_.write(' '.join(summary_text))
+    file_.write('\n')
 
 # Write evaluation files
 if args.gold:
@@ -123,6 +149,25 @@ if args.gold:
                         summary_sents.append(sent_amr)
         summary_corpus = Document(summary_sents)
         gold_summary_graph = summary_corpus.merge_graphs()
-        save_summary_path = os.path.join(args.output, filename)
+
+        name, _ = os.path.splitext(filename)
+        # Save AMR graph
+        save_summary_path = os.path.join(args.output, name + '.amr')
         with open(save_summary_path, 'w', encoding='utf-8') as file_:
             file_.write(str(gold_summary_graph))
+
+        # Save BOW from alignemnts
+        summary_text = list()
+        for n in gold_summary_graph.get_concept_nodes():
+            concept = gold_summary_graph.get_node_label(n)
+            if concept in concept_to_words:
+                summary_text.append(
+                    concept_to_words[concept].most_common(n=1)[0][0])
+        for c in gold_summary_graph.get_constant_nodes():
+            if c.startswith('"'):
+                summary_text.append(c.strip('"'))
+
+        save_summary_text_path = os.path.join(args.output, name + '.bow')
+        with open(save_summary_text_path, 'w', encoding='utf-8') as file_:
+            file_.write(' '.join(summary_text))
+            file_.write('\n')
