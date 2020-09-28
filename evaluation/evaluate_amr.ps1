@@ -10,13 +10,13 @@ param (
 
 Write-Output "-----------SMATCH-----------"
 foreach ($g in $gold) {
-    Write-Output "$(Split-Path -Path $test -Leaf) -- $(Split-Path -Path $g -Leaf)"
+    Write-Output "$((Get-Item $test).BaseName)-$((Get-Item $g).BaseName)"
     python3 .\venv\Scripts\smatch.py -f $test $g
 }
 
 Write-Output "------------SEMA------------"
 foreach ($g in $gold) {
-    Write-Output "$test--$g"
+    Write-Output "$((Get-Item $test).BaseName)-$((Get-Item $g).BaseName)"
     python3 .\venv\sema\sema.py -t $test -g $g
 }
 Write-Output "----------------------------"
