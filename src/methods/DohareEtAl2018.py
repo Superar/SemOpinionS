@@ -79,9 +79,7 @@ def score_concepts(merged_graph, counts, concept_alignments):
             concept_scores[concept] = tf * np.log((num_docs/(df + 1)))  # TF-IDF
     concept_scores = Counter(concept_scores)
 
-    important_concepts = concept_scores.most_common(10)  # Most important concepts
-    important_concepts = [n for n, _ in important_concepts]
-    return important_concepts
+    return concept_scores
 
 def get_important_paths(corpus, important_concepts):
     selected_data = list()  # Of tuples (concept_1, concept_2, sentence_id, path)
@@ -200,7 +198,11 @@ def run(corpus, alignment, **kwargs):
 
     tf_idf = get_tf_idf(corpus, tf_idf_corpus_path)
     merged_graph, concept_alignments = preprocess(corpus, alignment)
-    important_concepts = score_concepts(merged_graph, tf_idf, concept_alignments)
+
+    concept_scores = score_concepts(merged_graph, tf_idf, concept_alignments)
+    concepts = concept_scores.most_common(10)  # Most important concepts
+    important_concepts = [n for n, _ in concepts]
+
     selected_paths = get_important_paths(corpus, important_concepts)
     expanded_paths = expand_paths(corpus, alignment, selected_paths, open_ie)
     summary_graph = get_summary_graph(corpus, expanded_paths)
