@@ -1,6 +1,7 @@
 from .amr import AMR
 from collections import namedtuple
 import penman
+import networkx as nx
 
 
 class Document(object):
@@ -50,5 +51,13 @@ class Document(object):
             top = merge_graph.get_top()
             root_number += 1
         merge_graph.add_edge(new_root, new_root, ':TOP', label=':TOP')
+
+        # Remove disconnected nodes
+        # This should not affect well-formed AMR graphs
+        largest_component = max(nx.connected_components(merge_graph.to_undirected()),
+                                key=len)
+        nodes_to_remove = [
+            n for n in merge_graph.nodes() if n not in largest_component]
+        merge_graph.remove_nodes_from(nodes_to_remove)
 
         return merge_graph
