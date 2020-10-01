@@ -24,22 +24,22 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '--gold', '-g',
-    help='Gold summary corpus to evaluate',
-    required=False
-)
-
-parser.add_argument(
     '--alignment', '-a',
     help='Alignment file',
-    required=False
+    required=True
 )
 
 parser.add_argument(
     '--alignment_format', '-af',
     help='Alignment file format to enable reading',
-    required=False,
+    required=True,
     choices=['giza', 'jamr']
+)
+
+parser.add_argument(
+    '--gold', '-g',
+    help='Gold summary corpus to evaluate',
+    required=False
 )
 
 parser.add_argument(
@@ -55,12 +55,6 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '--output', '-o',
-    help='Output directory',
-    required=True
-)
-
-parser.add_argument(
     '--training', '-t',
     help='Training set inputs for some methods',
     required=False
@@ -70,6 +64,12 @@ parser.add_argument(
     '--target', '-tt',
     help='Training set target (gold summaries) for some methods',
     required=False
+)
+
+parser.add_argument(
+    '--output', '-o',
+    help='Output directory',
+    required=True
 )
 
 args = parser.parse_args()
@@ -84,6 +84,7 @@ if not os.path.exists(args.output):
 # Run summarization method
 corpus = Document.read(args.corpus)
 
+# Read alignment file
 if args.alignment_format == 'giza':
     alignment = Alignment.read_giza(args.alignment)
 else:
