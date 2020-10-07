@@ -115,60 +115,60 @@ for id_, snt, amr in corpus:
             concept_to_words[c] = Counter(snt_alignment[c])
 
 # Save summarization result graph
-save_summary_path = os.path.join(args.output, args.method + '.amr')
-with open(save_summary_path, 'w', encoding='utf-8') as file_:
-    file_.write(str(summary_graph))
+# save_summary_path = os.path.join(args.output, args.method + '.amr')
+# with open(save_summary_path, 'w', encoding='utf-8') as file_:
+#     file_.write(str(summary_graph))
 
 # Save summary BOW from alignments
-summary_text = list()
-for n in summary_graph.get_concept_nodes():
-    concept = summary_graph.get_node_label(n)
-    if concept in concept_to_words:
-        summary_text.append(concept_to_words[concept].most_common(n=1)[0][0])
-for c in summary_graph.get_constant_nodes():
-    if c.startswith('"'):
-        summary_text.append(c.strip('"'))
+# summary_text = list()
+# for n in summary_graph.get_concept_nodes():
+#     concept = summary_graph.get_node_label(n)
+#     if concept in concept_to_words:
+#         summary_text.append(concept_to_words[concept].most_common(n=1)[0][0])
+# for c in summary_graph.get_constant_nodes():
+#     if c.startswith('"'):
+#         summary_text.append(c.strip('"'))
 
-save_summary_text_path = os.path.join(args.output, args.method + '.bow')
-with open(save_summary_text_path, 'w', encoding='utf-8') as file_:
-    file_.write(' '.join(summary_text))
-    file_.write('\n')
+# save_summary_text_path = os.path.join(args.output, args.method + '.bow')
+# with open(save_summary_text_path, 'w', encoding='utf-8') as file_:
+#     file_.write(' '.join(summary_text))
+#     file_.write('\n')
 
 # Write evaluation files
-if args.gold:
-    for filename in os.listdir(args.gold):
-        filepath = os.path.join(args.gold, filename)
-        summary_sents = list()
-        with open(filepath, encoding='utf-8') as file_:
-            for sent in file_:
-                # Sentence ID between <>
-                info = re.search(r'<([^>]+)>', sent)
-                if info is not None:
-                    id_ = info.group(1)
-                    sent_amr = corpus[id_]
-                    if sent_amr is not None:
-                        summary_sents.append(sent_amr)
-        summary_corpus = Document(summary_sents)
-        gold_summary_graph = summary_corpus.merge_graphs()
+# if args.gold:
+#     for filename in os.listdir(args.gold):
+#         filepath = os.path.join(args.gold, filename)
+#         summary_sents = list()
+#         with open(filepath, encoding='utf-8') as file_:
+#             for sent in file_:
+#                 # Sentence ID between <>
+#                 info = re.search(r'<([^>]+)>', sent)
+#                 if info is not None:
+#                     id_ = info.group(1)
+#                     sent_amr = corpus[id_]
+#                     if sent_amr is not None:
+#                         summary_sents.append(sent_amr)
+#         summary_corpus = Document(summary_sents)
+#         gold_summary_graph = summary_corpus.merge_graphs()
 
-        name, _ = os.path.splitext(filename)
-        # Save AMR graph
-        save_summary_path = os.path.join(args.output, name + '.amr')
-        with open(save_summary_path, 'w', encoding='utf-8') as file_:
-            file_.write(str(gold_summary_graph))
+#         name, _ = os.path.splitext(filename)
+#         # Save AMR graph
+#         save_summary_path = os.path.join(args.output, name + '.amr')
+#         with open(save_summary_path, 'w', encoding='utf-8') as file_:
+#             file_.write(str(gold_summary_graph))
 
-        # Save BOW from alignemnts
-        summary_text = list()
-        for n in gold_summary_graph.get_concept_nodes():
-            concept = gold_summary_graph.get_node_label(n)
-            if concept in concept_to_words:
-                summary_text.append(
-                    concept_to_words[concept].most_common(n=1)[0][0])
-        for c in gold_summary_graph.get_constant_nodes():
-            if c.startswith('"'):
-                summary_text.append(c.strip('"'))
+#         # Save BOW from alignemnts
+#         summary_text = list()
+#         for n in gold_summary_graph.get_concept_nodes():
+#             concept = gold_summary_graph.get_node_label(n)
+#             if concept in concept_to_words:
+#                 summary_text.append(
+#                     concept_to_words[concept].most_common(n=1)[0][0])
+#         for c in gold_summary_graph.get_constant_nodes():
+#             if c.startswith('"'):
+#                 summary_text.append(c.strip('"'))
 
-        save_summary_text_path = os.path.join(args.output, name + '.bow')
-        with open(save_summary_text_path, 'w', encoding='utf-8') as file_:
-            file_.write(' '.join(summary_text))
-            file_.write('\n')
+#         save_summary_text_path = os.path.join(args.output, name + '.bow')
+#         with open(save_summary_text_path, 'w', encoding='utf-8') as file_:
+#             file_.write(' '.join(summary_text))
+#             file_.write('\n')

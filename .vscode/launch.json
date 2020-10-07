@@ -73,9 +73,9 @@
                 "-o",
                 "out",
                 "-t",
-                "../Corpora/OpiSums-PT/Textos_AMR/O-Apanhador-no-Campo-de-Centeio/O-Apanhador-no-Campo-de-Centeio.parsed",
+                "../Corpora/Training-AMR/all.training",
                 "-tt",
-                "../Corpora/OpiSums-PT/Sumarios/O-Apanhador-no-Campo-de-Centeio/Extrativos"
+                "../Corpora/Training-AMR/all.target"
             ],
             "console": "integratedTerminal"
         }

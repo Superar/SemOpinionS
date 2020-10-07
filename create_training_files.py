@@ -14,18 +14,24 @@ corpus_path = Path(args.corpus)
 corpus = Document.read(args.corpus)
 name = corpus_path.stem
 
+training_path = corpus_path.parent / 'training'
+if not training_path.exists():
+    training_path.mkdir()
+
 gold_path = Path(args.gold)
-target_path = corpus_path.parent / f'{name}.target'
-target_file = target_path.open('w', encoding='utf-8')
+target_path = corpus_path.parent / 'target'
+if not target_path.exists():
+    target_path.mkdir()
 
-training_path = corpus_path.parent / f'{name}.training'
-with training_path.open('w', encoding='utf-8') as file_:
-    for i in range(len(list(gold_path.iterdir()))):
-        file_.write(f'# ::id {name}.{i + 1}\n')
-        file_.write('# ::snt -\n')
-        file_.write(f'{corpus.merge_graphs()}\n\n')
+for i in range(len(list(gold_path.iterdir()))):
+    training_filepath = training_path / f'{name}_{i + 1}.txt'
+    with training_filepath.open('w', encoding='utf-8') as file_:
+        for id_, snt, amr in corpus:
+            file_.write(f'# ::id {id_}\n')
+            file_.write(f'# ::snt {snt}\n')
+            file_.write(f'{amr}\n\n')
 
-for d in gold_path.iterdir():
+for i, d in enumerate(gold_path.iterdir()):
     summary_sents = list()
     with d.open('r', encoding='utf-8') as file_:
         for sent in file_:
@@ -37,9 +43,10 @@ for d in gold_path.iterdir():
                 if sent_amr is not None:
                     summary_sents.append(sent_amr)
     summary_corpus = Document(summary_sents)
-    gold_summary_graph = summary_corpus.merge_graphs()
 
-    target_file.write(f'# ::id {name}.{d.stem}\n')
-    target_file.write('# ::snt -\n')
-    target_file.write(f'{gold_summary_graph}\n\n')
-target_file.close()
+    target_filepath = target_path / f'{name}_{i + 1}.txt'
+    with target_filepath.open('w', encoding='utf-8') as file_:
+        for id_, snt, amr in summary_corpus:
+            file_.write(f'# ::id {id_}\n')
+            file_.write(f'# ::snt {snt}\n')
+            file_.write(f'{amr}\n\n')

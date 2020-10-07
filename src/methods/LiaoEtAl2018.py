@@ -456,26 +456,40 @@ def run(corpus, alignment, **kwargs):
             'LiaoEtAl2018 method requires training and target arguments')
 
     # Test
-    merged_graph = corpus.merge_graphs(collapse_ner=True, collapse_date=True)
+    # merged_graph = corpus.merge_graphs(collapse_ner=True, collapse_date=True)
     # expand_graph(merged_graph, corpus)
-    test_repr = graph_local_representations(merged_graph,
-                                            calculate_node_data(
-                                                corpus, alignment),
-                                            calculate_edge_data(corpus))
-    test_nodes = test_repr.loc[test_repr['n_bias'] == 1.0, :]
-    test_edges = test_repr.loc[test_repr['e_bias'] == 1.0, :]
+    # test_repr = graph_local_representations(merged_graph,
+    #                                         calculate_node_data(
+    #                                             corpus, alignment),
+    #                                         calculate_edge_data(corpus))
+    # test_nodes = test_repr.loc[test_repr['n_bias'] == 1.0, :]
+    # test_edges = test_repr.loc[test_repr['e_bias'] == 1.0, :]
 
     # Train
-    train, gold, top_train = prepare_training_data(training_path, gold_path, alignment)
-    weights = np.ones(train.shape[1])
-    for i, g in enumerate(gold * 5):
-        weights, gold_e, ilp_e = update_weights(weights, train, g, top_train,
-                                                loss='ramp')
+    training_corpus = Document.read(training_path)
+    target_corpus = Document.read(gold_path)
 
-        if (i + 1) % len(gold) == 0:
-            print('Epoch {}'.format((i + 1) // len(gold)))
-            sum_nodes, sum_edges = ilp_optimisation(test_nodes, test_edges,
-                                                    weights, merged_graph.get_top())
-            ex = [e for e, _ in sum_edges.iterrows()]
-            merged_graph.draw('merged_highlight_ramp_epoch_{}.pdf'.format((i + 1) // len(gold)),
-                            highlight_subgraph_edges=ex)
+    for _, _, amr in training_corpus.corpus:
+        amr._collapse_ner_nodes()
+        amr._collapse_date_nodes()
+
+        local_representation = graph_local_representations(amr,
+        calculate_node_data(training_corpus, alignment))
+
+    for _, _, amr in target_corpus.corpus:
+        amr._collapse_ner_nodes()
+        amr._collapse_date_nodes()
+
+    # weights = np.ones(train.shape[1])
+    # train, gold, top_train = prepare_training_data(training_path, gold_path, alignment)
+    # for i, g in enumerate(gold * 5):
+    #     weights, gold_e, ilp_e = update_weights(weights, train, g, top_train,
+    #                                             loss='ramp')
+
+    #     if (i + 1) % len(gold) == 0:
+    #         print('Epoch {}'.format((i + 1) // len(gold)))
+    #         sum_nodes, sum_edges = ilp_optimisation(test_nodes, test_edges,
+    #                                                 weights, merged_graph.get_top())
+    #         ex = [e for e, _ in sum_edges.iterrows()]
+    #         merged_graph.draw('merged_highlight_ramp_epoch_{}.pdf'.format((i + 1) // len(gold)),
+    #                         highlight_subgraph_edges=ex)
