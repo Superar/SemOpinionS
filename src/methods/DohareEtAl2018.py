@@ -5,15 +5,16 @@ import numpy as np
 from ..document import Document
 from nltk import word_tokenize
 from sklearn.feature_extraction.text import CountVectorizer
-from collections import Counter, namedtuple
+from collections import Counter
 from itertools import combinations, product
+
 
 def get_tf_idf(corpus, tf_idf_corpus_path):
     # Fit IDF counts
     texts = [os.path.join(tf_idf_corpus_path, fn)
-            for fn in os.listdir(tf_idf_corpus_path)]
+             for fn in os.listdir(tf_idf_corpus_path)]
     tf_idf = CountVectorizer(input='filename',
-                            tokenizer=lambda txt: word_tokenize(txt, language='portuguese'))
+                             tokenizer=lambda txt: word_tokenize(txt, language='portuguese'))
     df_counts = tf_idf.fit_transform(texts)
     num_docs = df_counts.shape[0]
 
@@ -31,6 +32,7 @@ def get_tf_idf(corpus, tf_idf_corpus_path):
     os.remove(tmp_name)
 
     return tf_idf, tf_counts, df_counts, num_docs
+
 
 def preprocess(corpus, alignment):
     # Preprocessing
@@ -61,6 +63,7 @@ def preprocess(corpus, alignment):
     merged_graph = corpus.merge_graphs()
     return merged_graph, concept_alignments
 
+
 def score_concepts(merged_graph, counts, concept_alignments):
     tf_idf, tf_counts, df_counts, num_docs = counts
     # Get score for each node
@@ -76,10 +79,12 @@ def score_concepts(merged_graph, counts, concept_alignments):
                     df += df_counts[0, tf_idf.vocabulary_[w]]
                 except KeyError:
                     pass
-            concept_scores[concept] = tf * np.log((num_docs/(df + 1)))  # TF-IDF
+            concept_scores[concept] = tf * \
+                np.log((num_docs/(df + 1)))  # TF-IDF
     concept_scores = Counter(concept_scores)
 
     return concept_scores
+
 
 def get_important_paths(corpus, important_concepts):
     selected_data = list()  # Of tuples (concept_1, concept_2, sentence_id, path)
@@ -115,6 +120,7 @@ def get_important_paths(corpus, important_concepts):
                 break
     return selected_data
 
+
 def expand_paths(corpus, alignment, selected_data, open_ie):
     # Expand selected paths using OpenIE tuples
     expanded_data = list()  # Of tuples (sent_id, expanded_path)
@@ -134,7 +140,7 @@ def expand_paths(corpus, alignment, selected_data, open_ie):
         triples_intersection = triples['vocab'].apply(get_intersection)
 
         selected_triples = triples.loc[triples_intersection ==
-                                    path_aligned_words, :]
+                                       path_aligned_words, :]
 
         expanded_path = set()
         if not selected_triples.empty:
@@ -180,6 +186,7 @@ def expand_paths(corpus, alignment, selected_data, open_ie):
             expanded_data.append((sent_id, expanded_path))
     return expanded_data
 
+
 def get_summary_graph(corpus, expanded_data):
     # Construct summary graph by merging all subgraphs
     summary_tuples = list()
@@ -191,6 +198,7 @@ def get_summary_graph(corpus, expanded_data):
     summary_doc = Document(summary_tuples)
     summary_graph = summary_doc.merge_graphs()
     return summary_graph
+
 
 def run(corpus, alignment, **kwargs):
     open_ie = kwargs.get('open_ie')
