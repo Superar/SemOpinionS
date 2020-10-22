@@ -18,8 +18,8 @@ def get_tf_idf(corpus, tf_idf_corpus_path):
     df_counts = tf_idf.fit_transform(texts)
     num_docs = df_counts.shape[0]
 
-    df_counts[df_counts > 0] = 1
-    df_counts = np.sum(df_counts, axis=0)
+    df_counts[df_counts > 0] = 1 # Indicate only presence
+    df_counts = np.sum(df_counts, axis=0) # number of docs in which token is present
 
     # Write file to calculate TF counts
     tmp, tmp_name = tempfile.mkstemp()
@@ -53,13 +53,14 @@ def preprocess(corpus, alignment):
 
         # Get words aligned to each concept
         sent_alignment = alignment.get_alignments(snt.lower())
-        for concept_var in amr.get_concept_nodes():
-            concept = amr.nodes[concept_var]['label']
-            if concept in sent_alignment:
-                if concept in concept_alignments:
-                    concept_alignments[concept] |= set(sent_alignment[concept])
-                else:
-                    concept_alignments[concept] = set(sent_alignment[concept])
+        if sent_alignment:
+            for concept_var in amr.get_concept_nodes():
+                concept = amr.nodes[concept_var]['label']
+                if concept in sent_alignment:
+                    if concept in concept_alignments:
+                        concept_alignments[concept] |= set(sent_alignment[concept])
+                    else:
+                        concept_alignments[concept] = set(sent_alignment[concept])
     merged_graph = corpus.merge_graphs()
     return merged_graph, concept_alignments
 
