@@ -198,9 +198,12 @@ class AMR(nx.MultiDiGraph):
         for n in self.get_concept_nodes():
             for succ in self.successors(n):
                 try:
+                    # Node has a 'name' node as child
                     if self.nodes[succ]['label'] == 'name':
-                        ner_nodes.append([n, succ])
-                        break
+                        # Linked by a ':name' relation
+                        if ':name' in self.get_edge_data(n, succ):
+                            ner_nodes.append([n, succ])
+                            break
                 except KeyError:
                     # Not a concept node
                     continue
@@ -209,7 +212,7 @@ class AMR(nx.MultiDiGraph):
 
         for ner, name in ner_nodes:
             subgraph = [ner, name]
-            name_ops = list(self.successors(name))
+            name_ops = list(self.successors(name)) # Assuming all successors are leaf and constant nodes
             constants.extend(name_ops)
             subgraph.extend(name_ops)
 

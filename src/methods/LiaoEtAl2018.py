@@ -1,12 +1,14 @@
 from ..document import Document
 from ..alignment import Alignment
 from collections import Counter
-from itertools import combinations
+from itertools import combinations, repeat
 from ortools.linear_solver import pywraplp
+from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 import numpy as np
 import os
 import re
+import multiprocessing
 
 
 def expand_graph(graph, corpus):
@@ -36,7 +38,8 @@ def calculate_node_data(corpus, alignment):
     node_positions = dict()
     span_lengths = dict()
     for i, doc in enumerate(corpus):
-        doc_alignment = alignment[alignment.get_sentence_position(doc.snt)]
+        doc_idx = alignment.get_sentence_position(doc.snt)
+        doc_alignment = alignment[doc_idx] if doc_idx is not None else None
         for node in doc.amr.nodes():
             try:
                 node_label = doc.amr.nodes[node]['label']
@@ -56,11 +59,23 @@ def calculate_node_data(corpus, alignment):
             if node_label not in span_lengths:
                 span_lengths[node_label] = list()
 
-            # Alignment for NER nodes is obtained from the first name (op1)
-            aligned_concept = node_label.split(
-                '.')[2] if node_label.startswith('NER:') else node_label
-            span_lengths[node_label].append(
-                len(doc_alignment[aligned_concept]))
+            # Get alignment info
+            if doc_alignment is not None:
+                if node_label.startswith('NER:'):
+                    # Alignment for NER nodes is obtained from the first name (op1)
+                    aligned_concept = node_label.split('.')[2]
+                else:
+                    aligned_concept = node_label
+
+                try:
+                    span_len = len(doc_alignment[aligned_concept])
+                    span_lengths[node_label].append(span_len)
+                except KeyError:
+                    # No alignment for the concept found
+                    span_lengths[node_label].append(0)
+            else:
+                # No alignment information for the sentence
+                span_lengths[node_label].append(0)
     return node_counts, node_depths, node_positions, span_lengths
 
 
@@ -102,34 +117,52 @@ def get_node_features(amr, data):
 
         # min_depth_1, min_depth_2, min_depth_3, min_depth_4, min_depth_5
         for t in [1, 2, 3, 4, 5]:
-            depth = 1.0 if min(node_depths[node_label]) >= t else 0.0
+            if node == amr.get_top():
+                # TOP node has depth 0
+                depth = 0.0
+            else:
+                depth = 1.0 if min(node_depths[node_label]) >= t else 0.0
             features[node].append(depth)
 
         # avg_depth_1, avg_depth_2, avg_depth_3, avg_depth_4, avg_depth_5
+        if node == amr.get_top():
+            avg_depth = 0.0
+        else:
+            avg_depth = np.mean(node_depths[node_label])
         for t in [1, 2, 3, 4, 5]:
-            avg_depth = sum(node_depths[node_label]) * \
-                1.0/len(node_depths[node_label])
             depth = 1.0 if avg_depth >= t else 0.0
             features[node].append(depth)
 
         # fmst_pos_5, fmst_pos_6, fmst_pos_7, fmst_pos_10, fmst_pos_15
         for t in [5, 6, 7, 10, 15]:
-            pos = 1.0 if min(node_positions[node_label]) >= t else 0.0
+            if node_label in node_positions:
+                pos = 1.0 if min(node_positions[node_label]) >= t else 0.0
+            else:
+                # There is no information about this specific node
+                pos = 0.0
             features[node].append(pos)
 
         # avg_pos_5, avg_pos_6, avg_pos_7, avg_pos_10, avg_pos_15
+        if node_label in node_positions:
+            avg_pos = np.mean(node_positions[node_label])
+        else:
+            avg_pos = 0.0
         for t in [5, 6, 7, 10, 15]:
-            avg_pos = sum(node_positions[node_label]) * \
-                1.0/len(node_positions[node_label])
             pos = 1.0 if avg_pos >= t else 0.0
             features[node].append(pos)
 
         # lngst_span_0, lngst_span_1, lngst_span_2, lngst_span_5, lngst_span_10
         for t in [0, 1, 2, 5, 10]:
-            span = 1.0 if max(span_lengths[node_label]) >= t else 0.0
+            if node_label in span_lengths:
+                span = 1.0 if max(span_lengths[node_label]) >= t else 0.0
+            else:
+                span = 0.0
             features[node].append(span)
 
-        avg_span = np.mean(span_lengths[node_label])
+        if node_label in span_lengths:
+            avg_span = np.mean(span_lengths[node_label])
+        else:
+            anv_span = 0.0
         for t in [0, 1, 2, 5, 10]:
             span = 1.0 if avg_span >= t else 0.0
             features[node].append(span)
@@ -145,11 +178,9 @@ def get_node_features(amr, data):
         # bias
         features[node].append(1.0)
 
-    return pd.get_dummies(pd.DataFrame(features,
-                                       index=features_names,
-                                       dtype=np.float32).T,
-                          columns=['concept'],
-                          dtype=np.float32)
+    return pd.DataFrame(features,
+                        index=features_names,
+                        dtype=np.float32).T
 
 
 def calculate_edge_data(corpus):
@@ -380,37 +411,21 @@ def prepare_training_data(training_path, gold_path, alignment):
     node_data = calculate_node_data(training_corpus, alignment)
     edge_data = calculate_edge_data(training_corpus)
 
-    gold_summaries = list()
-    for filename in os.listdir(gold_path):
-        filepath = os.path.join(gold_path, filename)
-        summary_sents = list()
-        with open(filepath, encoding='utf-8') as file_:
-            for sent in file_:
-                # Sentence ID between <>
-                info = re.search(r'<([^>]+)>', sent)
-                if info is not None:
-                    id_ = info.group(1)
-                    sent_amr = training_corpus[id_]
-                    if sent_amr is not None:
-                        summary_sents.append(sent_amr)
-        summary_corpus = Document(summary_sents)
-        gold_summary_graph = summary_corpus.merge_graphs(collapse_ner=True,
-                                                         collapse_date=True)
-        sum_repr = graph_local_representations(gold_summary_graph,
-                                               node_data, edge_data)
-        gold_summaries.append(sum_repr)
+    summary_corpus = Document.read(gold_path)
+    gold_summary_graph = summary_corpus.merge_graphs(collapse_ner=True,
+                                                     collapse_date=True)
+    sum_repr = graph_local_representations(gold_summary_graph,
+                                           node_data, edge_data)
+    sum_repr['name'] = os.path.splitext(os.path.basename(training_path))[0]
+    sum_repr['type'] = 'target'
 
     train_repr = graph_local_representations(training_graph,
                                              node_data, edge_data)
+    train_repr['name'] = os.path.splitext(os.path.basename(training_path))[0]
+    train_repr['type'] = 'train'
+    train_repr.at[training_graph.get_top(), 'top'] = True
 
-    # Ensure all representations have the same columns
-    all_columns = train_repr.append(gold_summaries).columns.tolist()
-    train_repr = train_repr.reindex(columns=all_columns, fill_value=0.0)
-    summaries_repr = list()
-    for s in gold_summaries:
-        summaries_repr.append(s.reindex(columns=all_columns, fill_value=0.0))
-
-    return train_repr, summaries_repr, training_graph.get_top()
+    return pd.concat([train_repr, sum_repr])
 
 
 def update_weights(weights, train, gold, top, loss='perceptron'):
@@ -424,16 +439,21 @@ def update_weights(weights, train, gold, top, loss='perceptron'):
 
         ilp_global = ilp_n.sum(axis=0) + ilp_e.sum(axis=0)
         new_weights = weights + gold_global - ilp_global
+
+        gold_n, gold_e = None, None
     elif loss == 'ramp':
-        cost_idx = train.index - gold.index
+        # Set to 1 all nodes/edges that are in training, but not in target
+        cost_idx = train.index.difference(gold.index)
         cost = pd.Series(0.0, index=train.index)
         cost.loc[cost_idx] = 1.0
 
+        # Run with negative costs
         gold_n, gold_e = ilp_optimisation(train_nodes, train_edges, weights, top,
-                                          nodes_cost=-1 * cost.loc[train_nodes.index],
-                                          edge_cost=-1 * cost.loc[train_edges.index])
+                                          nodes_cost=-cost.loc[train_nodes.index],
+                                          edge_cost=-cost.loc[train_edges.index])
         gold_global = gold_n.sum(axis=0) + gold_e.sum(axis=0)
 
+        # Run with positive cost
         ilp_n, ilp_e = ilp_optimisation(train_nodes, train_edges, weights, top,
                                         nodes_cost=cost.loc[train_nodes.index],
                                         edge_cost=cost.loc[train_edges.index])
@@ -448,48 +468,101 @@ def update_weights(weights, train, gold, top, loss='perceptron'):
     return new_weights, gold_e, ilp_e
 
 
+def train(training_path, gold_path, alignment, loss):
+    # Create training instances
+    with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count() - 1) as executor:
+        # Organize arguments for mapping
+        train_filepaths = list()
+        target_filepaths = list()
+        for instance_name in os.listdir(training_path):
+            train_filepaths.append(os.path.join(training_path, instance_name))
+            target_filepaths.append(os.path.join(gold_path, instance_name))
+        alignment_arg = repeat(alignment)
+
+        # Create training and target representations
+        result = executor.map(prepare_training_data,
+                              train_filepaths,
+                              target_filepaths,
+                              alignment_arg)
+
+    local_reprs_df = pd.get_dummies(pd.concat(result),
+                                    columns=['concept',
+                                             'node1_concept',
+                                             'node2_concept'],
+                                    dtype=np.float32)
+    # Remove false concepts created by the concatenation process
+    local_reprs_df = local_reprs_df.drop(columns=['concept_0.0',
+                                                  'node1_concept_0.0',
+                                                  'node2_concept_0.0'])
+    pairs_groups = local_reprs_df.groupby(by='name')
+
+    # Training
+    # Name, type and top columns are going to be dropped, so we need to subtract 3 dimensions
+    weights = np.ones(local_reprs_df.shape[1] - 3)
+
+    for g in pairs_groups.groups:
+        # Separate train and target through the type column and ignore non-feature columns
+        instance_df = pairs_groups.get_group(g).drop(columns='name')
+        top_train = instance_df.loc[instance_df['top'] == True].index[0]
+        train = instance_df.query("type == 'train'").drop(
+            columns=['type', 'top'])
+        target = instance_df.query("type == 'target'").drop(
+            columns=['type', 'top'])
+
+        # Update weights
+        weights, gold_e, ilp_e = update_weights(weights,
+                                                train,
+                                                target,
+                                                top_train,
+                                                loss=loss)
+    return weights
+
+
 def run(corpus, alignment, **kwargs):
     training_path = kwargs.get('training')
     gold_path = kwargs.get('target')
-    if not training_path or not gold_path:
-        raise ValueError(
-            'LiaoEtAl2018 method requires training and target arguments')
+    output_path = kwargs.get('output')
+    weights_path = kwargs.get('weights')
+    loss = kwargs.get('loss')
+    if not weights_path and not (training_path and gold_path):
+        raise ValueError('LiaoEtAl2018 method requires either training and '
+                         'target arguments or pre-trained weights')
+
+    if not weights_path and (training_path and gold_path):
+        weights = train(training_path, gold_path, alignment, loss)
+        weights.to_csv(os.path.join(output_path, 'weights.csv'))
+    elif weights_path:
+        weights = pd.read_csv(weights_path, index_col=0, squeeze=True)
 
     # Test
-    # merged_graph = corpus.merge_graphs(collapse_ner=True, collapse_date=True)
-    # expand_graph(merged_graph, corpus)
-    # test_repr = graph_local_representations(merged_graph,
-    #                                         calculate_node_data(
-    #                                             corpus, alignment),
-    #                                         calculate_edge_data(corpus))
-    # test_nodes = test_repr.loc[test_repr['n_bias'] == 1.0, :]
-    # test_edges = test_repr.loc[test_repr['e_bias'] == 1.0, :]
+    if corpus:
+        merged_test_graph = corpus.merge_graphs(collapse_ner=True,
+                                                collapse_date=True)
+        # expand_graph(merged_graph, corpus)
+        test_node_data = calculate_node_data(corpus, alignment)
+        test_edge_data = calculate_edge_data(corpus)
+        test_repr = graph_local_representations(merged_test_graph,
+                                                test_node_data,
+                                                test_edge_data)
+        test_repr = pd.get_dummies(test_repr,
+                                   columns=['concept',
+                                            'node1_concept',
+                                            'node2_concept'],
+                                   dtype=np.float32)
+        test_repr = test_repr.reindex(columns=weights.index,
+                                      fill_value=0.0)
+        test_nodes = test_repr.loc[test_repr['n_bias'] == 1.0, :]
+        test_edges = test_repr.loc[test_repr['e_bias'] == 1.0, :]
+        sum_nodes, sum_edges = ilp_optimisation(test_nodes, test_edges,
+                                                weights,
+                                                merged_test_graph.get_top())
 
-    # Train
-    training_corpus = Document.read(training_path)
-    target_corpus = Document.read(gold_path)
+        selected_edges = list()
+        for s, t in sum_edges.index:
+            for l in merged_test_graph.get_edge_data(s, t):
+                selected_edges.append((s, t, l))
+        sum_subgraph = merged_test_graph.edge_subgraph(selected_edges).copy()
+        sum_subgraph._uncollapse_ner_nodes()
+        sum_subgraph._uncollapse_date_nodes()
 
-    for _, _, amr in training_corpus.corpus:
-        amr._collapse_ner_nodes()
-        amr._collapse_date_nodes()
-
-        local_representation = graph_local_representations(amr,
-        calculate_node_data(training_corpus, alignment))
-
-    for _, _, amr in target_corpus.corpus:
-        amr._collapse_ner_nodes()
-        amr._collapse_date_nodes()
-
-    # weights = np.ones(train.shape[1])
-    # train, gold, top_train = prepare_training_data(training_path, gold_path, alignment)
-    # for i, g in enumerate(gold * 5):
-    #     weights, gold_e, ilp_e = update_weights(weights, train, g, top_train,
-    #                                             loss='ramp')
-
-    #     if (i + 1) % len(gold) == 0:
-    #         print('Epoch {}'.format((i + 1) // len(gold)))
-    #         sum_nodes, sum_edges = ilp_optimisation(test_nodes, test_edges,
-    #                                                 weights, merged_graph.get_top())
-    #         ex = [e for e, _ in sum_edges.iterrows()]
-    #         merged_graph.draw('merged_highlight_ramp_epoch_{}.pdf'.format((i + 1) // len(gold)),
-    #                         highlight_subgraph_edges=ex)
+        return sum_subgraph

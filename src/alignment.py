@@ -60,18 +60,17 @@ class Alignment(object):
             cur_toks = list()
             for line in file_:
                 if line.startswith('# ::snt'):
-                    cur_sent = line.lstrip('# ::snt ').rstrip()
+                    cur_sent = line[len('# ::snt '):].rstrip()
                     sentences.append(cur_sent.lower())
                     alignment.append(dict())
                 elif line.startswith('# ::tok'):
-                    cur_toks = line.lstrip('# ::tok ').rstrip().split()
+                    cur_toks = line[len('# ::tok '):].rstrip().split()
                 elif line.startswith('# ::node'):
-                    node_data = line.lstrip('# ::node\t').rstrip().split('\t')
-                    if node_data[1] not in alignment[-1]:
-                        alignment[-1][node_data[1]] = list()
-
+                    node_data = line[len('# ::node\t'):].rstrip().split('\t')
                     if len(node_data) > 2:
                         # There is an alignment for the node
+                        if node_data[1] not in alignment[-1]:
+                            alignment[-1][node_data[1]] = list()
                         start, end = map(int, node_data[2].split('-'))
                         for i in range(start, end):
                             alignment[-1][node_data[1]].append(cur_toks[i])
@@ -80,7 +79,7 @@ class Alignment(object):
     def get_sentence_position(self, sentence):
         sentence = sentence.lower()
         for i, sent in enumerate(self.sentences):
-            if sent == sentence:
+            if sentence in sent:
                 return i
         return None
 

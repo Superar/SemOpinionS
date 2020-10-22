@@ -67,15 +67,15 @@
                 "-c",
                 "../Corpora/OpiSums-PT/Textos_AMR/O-Apanhador-no-Campo-de-Centeio/O-Apanhador-no-Campo-de-Centeio.parsed",
                 "-a",
-                "../Corpora/AMR-PT-OP/SPAN-MANUAL/combined_manual_jamr.txt",
+                "../Corpora/AMR-PT-OP/SPAN-MANUAL/combined_manual_training_target_jamr.txt",
                 "-af",
                 "jamr",
                 "-o",
                 "out",
                 "-t",
-                "../Corpora/Training-AMR/all.training",
+                "../Corpora/Training-AMR/all/training",
                 "-tt",
-                "../Corpora/Training-AMR/all.target"
+                "../Corpora/Training-AMR/all/target"
             ],
             "console": "integratedTerminal"
         }
