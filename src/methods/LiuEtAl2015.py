@@ -312,7 +312,7 @@ def ilp_optimisation(node_features, edge_features, weights, top, nodes_cost=0, e
     nodes_scores = np.dot(node_features, weights) + nodes_cost
     edge_scores = np.dot(edge_features, weights) + edge_cost
 
-    solver = pywraplp.Solver('LiaoEtAl2018',
+    solver = pywraplp.Solver('LiuEtAl2015',
                              pywraplp.Solver.CBC_MIXED_INTEGER_PROGRAMMING)
     nodes_var = {n: solver.IntVar(0, 1, 'node[{}]'.format(n))
                  for n, _ in node_features.iterrows()}
@@ -525,7 +525,7 @@ def run(corpus, alignment, **kwargs):
     weights_path = kwargs.get('weights')
     loss = kwargs.get('loss')
     if not weights_path and not (training_path and gold_path):
-        raise ValueError('LiaoEtAl2018 method requires either training and '
+        raise ValueError('LiuEtAl2015 method requires either training and '
                          'target arguments or pre-trained weights')
 
     if not weights_path and (training_path and gold_path):
