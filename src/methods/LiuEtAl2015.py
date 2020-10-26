@@ -425,7 +425,9 @@ def prepare_training_data(training_path, gold_path, alignment):
     train_repr['type'] = 'train'
     train_repr.at[training_graph.get_top(), 'top'] = True
 
-    return pd.concat([train_repr, sum_repr])
+    final_reprs = pd.concat([train_repr, sum_repr])
+    final_reprs['concept'] = final_reprs['concept'].replace(0.0, np.nan)
+    return final_reprs
 
 
 def update_weights(weights, train, gold, top, loss='perceptron'):
