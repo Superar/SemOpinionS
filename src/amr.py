@@ -5,12 +5,13 @@ from itertools import combinations
 
 
 class AMR(nx.MultiDiGraph):
-    def __init__(self):
+    def __init__(self, penman_g):
         super().__init__()
+        self.penman = penman_g
 
     @classmethod
     def load_penman(cls, penman_g):
-        amr = cls()
+        amr = cls(penman_g)
         for r in penman_g.triples:
             if r[1] == ':instance':
                 amr.add_node(r[0], label=r[2])
@@ -21,7 +22,10 @@ class AMR(nx.MultiDiGraph):
         return amr
 
     def __str__(self):
-        return penman.encode(self.as_penman_graph())
+        tree = penman.configure(self.penman)
+        # Reset metadata to avoid comments
+        tree.metadata = dict()
+        return penman.format(tree)
 
     def as_penman_graph(self, keep_top_edges=False):
         defined_variables = set()
@@ -40,7 +44,7 @@ class AMR(nx.MultiDiGraph):
             elif keep_top_edges:
                 # Only add :TOP edges if flag is up
                 triples.append((s, r, t))
-        
+
         # Add remaining variables
         for var in self.variables() - defined_variables:
             triples.append((var, ':instance', self.nodes[var]['label']))
