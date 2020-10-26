@@ -5,13 +5,14 @@ from itertools import combinations
 
 
 class AMR(nx.MultiDiGraph):
-    def __init__(self, penman_g):
+    def __init__(self):
         super().__init__()
-        self.penman = penman_g
+        self.penman = None
 
     @classmethod
     def load_penman(cls, penman_g):
-        amr = cls(penman_g)
+        amr = cls()
+        amr.set_penman(penman_g)
         for r in penman_g.triples:
             if r[1] == ':instance':
                 amr.add_node(r[0], label=r[2])
@@ -22,33 +23,42 @@ class AMR(nx.MultiDiGraph):
         return amr
 
     def __str__(self):
-        tree = penman.configure(self.penman)
-        # Reset metadata to avoid comments
-        tree.metadata = dict()
-        return penman.format(tree)
+        if self.penman is not None:
+            tree = penman.configure(self.penman)
+            # Reset metadata to avoid comments
+            tree.metadata = dict()
+            return penman.format(tree)
+        else:
+            return penman.encode(self.as_penman_graph())
+
+    def set_penman(self, penman_g):
+        self.penman = penman_g
 
     def as_penman_graph(self, keep_top_edges=False):
-        defined_variables = set()
-        triples = list()
-        for s, t, r in self.edges:
-            if r != ':TOP':
-                triples.append((s, r, t))
+        if self.penman is not None:
+            return self.penman
+        else:
+            defined_variables = set()
+            triples = list()
+            for s, t, r in self.edges:
+                if r != ':TOP':
+                    triples.append((s, r, t))
 
-                # Add variables included in the edge
-                if s in self.variables() and s not in defined_variables:
-                    triples.append((s, ':instance', self.nodes[s]['label']))
-                    defined_variables.add(s)
-                if t in self.variables() and t not in defined_variables:
-                    triples.append((t, ':instance', self.nodes[t]['label']))
-                    defined_variables.add(t)
-            elif keep_top_edges:
-                # Only add :TOP edges if flag is up
-                triples.append((s, r, t))
+                    # Add variables included in the edge
+                    if s in self.variables() and s not in defined_variables:
+                        triples.append((s, ':instance', self.nodes[s]['label']))
+                        defined_variables.add(s)
+                    if t in self.variables() and t not in defined_variables:
+                        triples.append((t, ':instance', self.nodes[t]['label']))
+                        defined_variables.add(t)
+                elif keep_top_edges:
+                    # Only add :TOP edges if flag is up
+                    triples.append((s, r, t))
 
-        # Add remaining variables
-        for var in self.variables() - defined_variables:
-            triples.append((var, ':instance', self.nodes[var]['label']))
-        return penman.Graph(triples=triples, top=self.get_top())
+            # Add remaining variables
+            for var in self.variables() - defined_variables:
+                triples.append((var, ':instance', self.nodes[var]['label']))
+            return penman.Graph(triples=triples, top=self.get_top())
 
     def as_weighted_DiGraph(self):
         dg = nx.DiGraph(self)
@@ -106,7 +116,9 @@ class AMR(nx.MultiDiGraph):
                     return n
 
     def copy(self):
-        return AMR.load_penman(self.as_penman_graph(keep_top_edges=True))
+        copied_amr = AMR.load_penman(self.as_penman_graph(keep_top_edges=True))
+        copied_amr.set_penman(None)
+        return copied_amr
 
     def merge(self, amr_graph, collapse_ner=False, collapse_date=False):
         assert isinstance(amr_graph, AMR)
@@ -177,7 +189,7 @@ class AMR(nx.MultiDiGraph):
                 self.nodes[n]['color'] = 'red'
             for e in self.subgraph(highlight_subgraph_nodes).edges:
                 self.edges[e]['color'] = 'red'
-        
+
         if highlight_subgraph_edges:
             for s, t in highlight_subgraph_edges:
                 self.nodes[s]['color'] = 'red'
@@ -216,7 +228,8 @@ class AMR(nx.MultiDiGraph):
 
         for ner, name in ner_nodes:
             subgraph = [ner, name]
-            name_ops = list(self.successors(name)) # Assuming all successors are leaf and constant nodes
+            # Assuming all successors are leaf and constant nodes
+            name_ops = list(self.successors(name))
             constants.extend(name_ops)
             subgraph.extend(name_ops)
 
