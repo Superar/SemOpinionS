@@ -1,11 +1,16 @@
-from .amr import AMR
 from collections import namedtuple
 import penman
 import networkx as nx
+from .amr import AMR
 
 
 class Document(object):
-    """Class that reads a file with AMR graphs in penman notation"""
+    '''
+    Class that reads a file with AMR graphs in penman notation.
+
+    Attributes:
+        corpus: list of tuples (id, sentence, AMR)
+    '''
     doc_item = namedtuple('DocumentSent', ['id', 'snt', 'amr'])
 
     def __init__(self, corpus):
@@ -21,6 +26,16 @@ class Document(object):
 
     @classmethod
     def read(cls, corpus_path):
+        '''
+        Creates an object from a file containing ids, sentences and
+        AMR graphs in penman notation.
+
+        Parameters:
+            corpus_path (str): Path of the file to be read
+
+        Returns:
+            Document: An object with all read AMR graphs
+        '''
         corpus = list()
         with open(corpus_path, encoding='utf-8') as corpusfile:
             corpusstr = corpusfile.read()
@@ -32,6 +47,16 @@ class Document(object):
         return cls(corpus)
 
     def merge_graphs(self, collapse_ner=False, collapse_date=False):
+        '''
+        Merges all AMR graphs in the current document into a single representation.
+
+        Parameters:
+            collapse_ner (bool, default False): Wheter to keep all NE nodes collapsed
+            collapse_date (bool, default False): Wheter to keep all date nodes collapsed
+
+        Return:
+            AMR: A single representation of all AMR graphs in the document merged
+        '''
         merge_graph = AMR()
         for amr in self.corpus:
             merge_graph = merge_graph.merge(amr.amr,

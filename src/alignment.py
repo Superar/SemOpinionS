@@ -2,6 +2,16 @@ import penman
 
 
 class Alignment(object):
+    '''
+    Class that stores alignment information.
+    Should be created using the methods `read_giza` or `read_jamr` according to the format.
+
+    Attributes:
+        sentences (list): all sentences from the original file in lower case
+        alignment (list): list of dictionaries concept-to-word, parallel with sentences
+        word_to_concept (list): list of dictionaries word-to-concept, parallel with sentences
+    '''
+
     def __init__(self, sentences, alignment):
         self.sentences = sentences
         self.alignment = alignment
@@ -17,10 +27,20 @@ class Alignment(object):
             self.word_to_concept.append(words)
 
     def __getitem__(self, item):
+        '''Numerical indexing of alignments'''
         return self.alignment[item]
 
     @classmethod
     def read_giza(cls, filepath):
+        '''
+        Creates an Alignment object from reading an alignment file in GIZA format.
+
+        Parameters:
+            filepath (str): Path to the alignment file in GIZA format
+
+        Returns:
+            Alignment: Alignment object containing all alignments read
+        '''
         sentences = list()
         alignment = list()
         with open(filepath, encoding='utf-8') as file_:
@@ -30,26 +50,28 @@ class Alignment(object):
                     sent = ' '.join(toks)
                     sentences.append(sent.lower())
 
-                    alignment.append(dict())
+                    cur_alignment = dict()
                     amr_string = file_.readline()
                     amr = penman.loads(amr_string)[0]
 
                     # Node alignments
                     alignment_list = penman.surface.alignments(amr)
                     for a in alignment_list:
-                        if a[-1] not in alignment[-1]:
-                            alignment[-1][a[-1]] = list()
-                        alignment[-1][a[-1]
-                                      ].append(toks[alignment_list[a].indices[0]])
+                        if a[-1] not in cur_alignment:
+                            cur_alignment[a[-1]] = list()
+                        cur_alignment[a[-1]].append(
+                            toks[alignment_list[a].indices[0]])
 
                     # Role alignments
                     alignment_list = penman.surface.role_alignments(amr)
                     for a in alignment_list:
                         s, l, t = a
-                        if (s, t, l) not in alignment[-1]:
-                            alignment[-1][(s, t, l)] = list()
-                        alignment[-1][(s, t, l)
-                                      ].append(toks[alignment_list[a].indices[0]])
+                        if (s, t, l) not in cur_alignment:
+                            cur_alignment[(s, t, l)] = list()
+                        cur_alignment[(s, t, l)].append(
+                            toks[alignment_list[a].indices[0]])
+
+                    alignment.append(cur_alignment)
         return cls(sentences, alignment)
 
     @classmethod
@@ -77,6 +99,16 @@ class Alignment(object):
         return cls(sentences, alignment)
 
     def get_sentence_position(self, sentence):
+        '''
+        Given a sentence, return its index in all paralle attributes lists
+
+        Parameters:
+            sentence (str): Exact sentence from the alignment file
+        
+        Returns:
+            Integer: Index of the sentence if it is found
+            None: If the sentence has not been found
+        '''
         sentence = sentence.lower()
         for i, sent in enumerate(self.sentences):
             if sentence in sent:
@@ -84,6 +116,16 @@ class Alignment(object):
         return None
 
     def get_alignments(self, sentence):
+        '''
+        Given a sentence, return its concept-to-word dictionary
+
+        Parameters:
+            sentence (str): Exact sentence form the alignment file
+
+        Returns:
+            Dict: Alignment concept-to-word dictionary for the given sentence
+            None: If the sentence has not been found
+        '''
         idx = self.get_sentence_position(sentence)
         if idx is not None:
             return self.alignment[idx]
@@ -91,6 +133,16 @@ class Alignment(object):
             return None
 
     def get_reverse_alignments(self, sentence):
+        '''
+        Given a sentence, return its word-to-concept dictionary
+
+        Parameters:
+            sentence (str): Exact sentence form the alignment file
+
+        Returns:
+            Dict: Alignment word-to-concept dictionary for the given sentence
+            None: If the sentence has not been found
+        '''
         idx = self.get_sentence_position(sentence)
         if idx is not None:
             return self.word_to_concept[idx]

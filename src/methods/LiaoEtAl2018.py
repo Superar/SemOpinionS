@@ -196,7 +196,7 @@ def run(corpus, alignment, **kwargs):
             for l in merged_test_graph.get_edge_data(s, t):
                 selected_edges.append((s, t, l))
         sum_subgraph = merged_test_graph.edge_subgraph(selected_edges).copy()
-        sum_subgraph._uncollapse_ner_nodes()
-        sum_subgraph._uncollapse_date_nodes()
+        sum_subgraph.uncollapse_ner_nodes()
+        sum_subgraph.uncollapse_date_nodes()
 
         return sum_subgraph

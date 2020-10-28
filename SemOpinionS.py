@@ -7,6 +7,7 @@ from src.document import Document
 from src.alignment import Alignment
 from src.openie import OpenIE
 
+# Set arguments
 parser = argparse.ArgumentParser(
     description='SemOpinionS - Semantic Opinion Summarization'
 )
@@ -87,6 +88,7 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+# Check arguments
 if args.alignment and not args.alignment_format:
     parser.error(
         'Please provide alignment file format (--alignment_format/-af)')
@@ -106,6 +108,7 @@ if args.alignment_format == 'giza':
 else:
     alignment = Alignment.read_jamr(args.alignment)
 
+# Set extra arguments for different methods
 kwargs = dict()
 if args.openie:
     open_ie = OpenIE.read_csv(args.openie)
@@ -122,8 +125,9 @@ if args.weights:
     kwargs['weights'] = args.weights
 kwargs['loss'] = args.loss
 
+# Import the selected method
 method = import_module('src.methods.' + args.method)
-summary_graph = method.run(corpus, alignment, **kwargs)
+summary_graph = method.run(corpus, alignment, **kwargs) # Run the method
 
 # Get alignments for each concept in the corpus
 concept_to_words = dict()
