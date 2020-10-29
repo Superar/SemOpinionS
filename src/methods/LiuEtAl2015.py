@@ -1,14 +1,12 @@
-from ..document import Document
-from ..alignment import Alignment
+import os
 from collections import Counter
-from itertools import combinations, repeat
+from itertools import repeat
 from ortools.linear_solver import pywraplp
 from concurrent.futures import ThreadPoolExecutor
+import multiprocessing
 import pandas as pd
 import numpy as np
-import os
-import re
-import multiprocessing
+from ..document import Document
 
 
 def expand_graph(graph, corpus):
@@ -440,7 +438,6 @@ def update_weights(weights, train, gold, top, loss='perceptron'):
         ilp_n, ilp_e = ilp_optimisation(train_nodes, train_edges, weights, top)
 
         ilp_global = ilp_n.sum(axis=0) + ilp_e.sum(axis=0)
-        new_weights = weights + gold_global - ilp_global
 
         gold_n, gold_e = None, None
     elif loss == 'ramp':
@@ -461,12 +458,12 @@ def update_weights(weights, train, gold, top, loss='perceptron'):
                                         edge_cost=cost.loc[train_edges.index])
         ilp_global = ilp_n.sum(axis=0) + ilp_e.sum(axis=0)
 
-        # Adagrad
-        gradient = ilp_global - gold_global
-        eta = 1.0
-        epsilon = 1.0
-        learning_rate = eta / np.sqrt(np.sum(gradient ** 2) + epsilon)
-        new_weights = weights - learning_rate * gradient
+    # Adagrad
+    gradient = ilp_global - gold_global
+    eta = 1.0
+    epsilon = 1.0
+    learning_rate = eta / np.sqrt(np.sum(gradient ** 2) + epsilon)
+    new_weights = weights - learning_rate * gradient
     return new_weights, gold_e, ilp_e
 
 
@@ -492,10 +489,6 @@ def train(training_path, gold_path, alignment, loss):
                                              'node1_concept',
                                              'node2_concept'],
                                     dtype=np.float32)
-    # Remove false concepts created by the concatenation process
-    local_reprs_df = local_reprs_df.drop(columns=['concept_0.0',
-                                                  'node1_concept_0.0',
-                                                  'node2_concept_0.0'])
     pairs_groups = local_reprs_df.groupby(by='name')
 
     # Training

@@ -1,11 +1,11 @@
 # Training
-# python SemOpinionS.py -m LiuEtAl2015 \
-#     -a ../Corpora/AMR-PT-OP/SPAN-MANUAL/combined_manual_training_target_jamr.txt \
-#     -af jamr \
-#     -t ../Corpora/Training-AMR/all/training \
-#     -tt ../Corpora/Training-AMR/all/target \
-#     -l ramp \
-#     -o out
+python SemOpinionS.py -m LiuEtAl2015 \
+    -a ../Corpora/AMR-PT-OP/SPAN-MANUAL/combined_manual_training_target_jamr.txt \
+    -af jamr \
+    -t ../Corpora/Training-AMR/all/training \
+    -tt ../Corpora/Training-AMR/all/target \
+    -l ramp \
+    -o out
 
 # Run summarization
 python SemOpinionS.py -m LiuEtAl2015 \
