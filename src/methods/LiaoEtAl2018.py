@@ -43,8 +43,7 @@ def include_tf_idf(local_repr, scores, concept_alignments, tf_idf):
 
 def prepare_training_data(training_path, gold_path, alignment, tf_idf_counts):
     tf_idf, tf_counts, df_counts, num_docs, doc_to_index = tf_idf_counts
-    name = os.path.basename(training_path)
-    doc_tf = tf_counts[doc_to_index[('training', name)], :]
+    doc_tf = tf_counts[doc_to_index[('training', training_path.name)], :]
     merged_graph, concept_alignments = preprocess(Document.read(training_path),
                                                   alignment)
     scores = score_concepts(merged_graph,
@@ -61,9 +60,9 @@ def train(training_path, gold_path, alignment, tf_idf_counts):
     with ThreadPoolExecutor(max_workers=cpu_count() - 1) as executor:
         train_filepaths = list()
         target_filepaths = list()
-        for instance_name in os.listdir(training_path):
-            train_filepaths.append(os.path.join(training_path, instance_name))
-            target_filepaths.append(os.path.join(gold_path, instance_name))
+        for instance_path in training_path.iterdir():
+            train_filepaths.append(instance_path)
+            target_filepaths.append(gold_path / instance_path.name)
         alignment_arg = repeat(alignment)
         tf_idf_arg = repeat(tf_idf_counts)
 
@@ -100,8 +99,7 @@ def train(training_path, gold_path, alignment, tf_idf_counts):
 
 
 def get_tf_idf(training_path, gold_path, tf_idf_path):
-    texts = [os.path.join(tf_idf_path, fn)
-             for fn in os.listdir(tf_idf_path)]
+    texts = list(tf_idf_path.iterdir())
     tf_idf = CountVectorizer(input='filename',
                              tokenizer=lambda txt: word_tokenize(txt, language='portuguese'))
     df_counts = tf_idf.fit_transform(texts)
@@ -110,10 +108,8 @@ def get_tf_idf(training_path, gold_path, tf_idf_path):
     df_counts[df_counts > 0] = 1
     df_counts = np.sum(df_counts, axis=0)
 
-    training_paths = list(map(lambda p: os.path.join(training_path, p),
-                              os.listdir(training_path)))
-    gold_paths = list(map(lambda p: os.path.join(gold_path, p),
-                          os.listdir(gold_path)))
+    training_paths = list(training_path.iterdir())
+    gold_paths = list(gold_path.iterdir())
 
     tf_paths = list()
     for file_ in training_paths + gold_paths:
@@ -130,10 +126,10 @@ def get_tf_idf(training_path, gold_path, tf_idf_path):
         os.close(tmp)
         os.remove(tmp_name)
 
-    doc_to_index = {('training', f): i
-                    for i, f in enumerate(os.listdir(training_path))}
-    doc_to_index.update({('gold', f): len(training_paths) + i
-                         for i, f in enumerate(os.listdir(gold_path))})
+    doc_to_index = {('training', f.name): i
+                    for i, f in enumerate(training_path.iterdir())}
+    doc_to_index.update({('gold', f.name): len(training_paths) + i
+                         for i, f in enumerate(gold_path.iterdir())})
     return tf_idf, tf_counts, df_counts, num_docs, doc_to_index
 
 
@@ -154,7 +150,7 @@ def run(corpus, alignment, **kwargs):
     if not weights_path and (training_path and gold_path):
         counts = get_tf_idf(training_path, gold_path, tf_idf_corpus_path)
         weights = train(training_path, gold_path, alignment, counts)
-        weights.to_csv(os.path.join(output_path, 'weights.csv'))
+        weights.to_csv(output_path / 'weights.csv')
     elif weights_path:
         weights = pd.read_csv(weights_path, index_col=0, squeeze=True)
 

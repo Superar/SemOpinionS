@@ -1,4 +1,3 @@
-import os
 from collections import Counter
 from itertools import repeat
 from ortools.linear_solver import pywraplp
@@ -414,12 +413,12 @@ def prepare_training_data(training_path, gold_path, alignment):
                                                      collapse_date=True)
     sum_repr = graph_local_representations(gold_summary_graph,
                                            node_data, edge_data)
-    sum_repr['name'] = os.path.splitext(os.path.basename(training_path))[0]
+    sum_repr['name'] = training_path.stem
     sum_repr['type'] = 'target'
 
     train_repr = graph_local_representations(training_graph,
                                              node_data, edge_data)
-    train_repr['name'] = os.path.splitext(os.path.basename(training_path))[0]
+    train_repr['name'] = training_path.stem
     train_repr['type'] = 'train'
     train_repr.at[training_graph.get_top(), 'top'] = True
 
@@ -473,9 +472,9 @@ def train(training_path, gold_path, alignment, loss):
         # Organize arguments for mapping
         train_filepaths = list()
         target_filepaths = list()
-        for instance_name in os.listdir(training_path):
-            train_filepaths.append(os.path.join(training_path, instance_name))
-            target_filepaths.append(os.path.join(gold_path, instance_name))
+        for instance_path in training_path.iterdir():
+            train_filepaths.append(instance_path)
+            target_filepaths.append(gold_path / instance_path.name)
         alignment_arg = repeat(alignment)
 
         # Create training and target representations
@@ -525,7 +524,7 @@ def run(corpus, alignment, **kwargs):
 
     if not weights_path and (training_path and gold_path):
         weights = train(training_path, gold_path, alignment, loss)
-        weights.to_csv(os.path.join(output_path, 'weights.csv'))
+        weights.to_csv(output_path / 'weights.csv')
     elif weights_path:
         weights = pd.read_csv(weights_path, index_col=0, squeeze=True)
 

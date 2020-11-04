@@ -1,8 +1,8 @@
 import argparse
-import os
 import re
 from importlib import import_module
 from collections import Counter
+from pathlib import Path
 from src.document import Document
 from src.alignment import Alignment
 from src.openie import OpenIE
@@ -40,6 +40,7 @@ parser.add_argument(
 parser.add_argument(
     '--gold', '-g',
     help='Gold summary corpus to evaluate',
+    type=Path,
     required=False
 )
 
@@ -52,18 +53,21 @@ parser.add_argument(
 parser.add_argument(
     '--tfidf',
     help='File to a large corpus from which to calculate TF-IDF counts',
+    type=Path,
     required=False
 )
 
 parser.add_argument(
     '--training', '-t',
     help='Training set inputs for some methods',
+    type=Path,
     required=False
 )
 
 parser.add_argument(
     '--target', '-tt',
     help='Training set target (gold summaries) for some methods',
+    type=Path,
     required=False
 )
 
@@ -83,6 +87,7 @@ parser.add_argument(
 parser.add_argument(
     '--output', '-o',
     help='Output directory',
+    type=Path,
     required=True
 )
 
@@ -93,8 +98,8 @@ if args.alignment and not args.alignment_format:
     parser.error(
         'Please provide alignment file format (--alignment_format/-af)')
 
-if not os.path.exists(args.output):
-    os.mkdir(args.output)
+if not args.output.exists():
+    args.output.mkdir()
 
 # Read corpus file
 if args.corpus:
@@ -142,8 +147,8 @@ if corpus:
 
 # Save summarization result graph
 if summary_graph:
-    save_summary_path = os.path.join(args.output, args.method + '.amr')
-    with open(save_summary_path, 'w', encoding='utf-8') as file_:
+    save_summary_path = (args.output / args.method).with_suffix('.amr')
+    with save_summary_path.open('w', encoding='utf-8') as file_:
         file_.write(str(summary_graph))
 
 # Save summary BOW from alignments
@@ -157,17 +162,16 @@ if concept_to_words and summary_graph:
         if c.startswith('"'):
             summary_text.append(c.strip('"'))
 
-    save_summary_text_path = os.path.join(args.output, args.method + '.bow')
-    with open(save_summary_text_path, 'w', encoding='utf-8') as file_:
+    save_summary_text_path = (args.output / args.method).with_suffix('.bow')
+    with save_summary_text_path.open('w', encoding='utf-8') as file_:
         file_.write(' '.join(summary_text))
         file_.write('\n')
 
 # Write evaluation files
 if args.gold:
-    for filename in os.listdir(args.gold):
-        filepath = os.path.join(args.gold, filename)
+    for filepath in args.gold.iterdir():
         summary_sents = list()
-        with open(filepath, encoding='utf-8') as file_:
+        with filepath.open(encoding='utf-8') as file_:
             for sent in file_:
                 # Sentence ID between <>s
                 info = re.search(r'<([^>]+)>', sent)
@@ -179,10 +183,10 @@ if args.gold:
         summary_corpus = Document(summary_sents)
         gold_summary_graph = summary_corpus.merge_graphs()
 
-        name, _ = os.path.splitext(filename)
+        name = filepath.stem
         # Save AMR graph
-        save_summary_path = os.path.join(args.output, name + '.amr')
-        with open(save_summary_path, 'w', encoding='utf-8') as file_:
+        save_summary_path = (args.output / name).with_suffix('.amr')
+        with save_summary_path.open('w', encoding='utf-8') as file_:
             file_.write(str(gold_summary_graph))
 
         # Save BOW from alignemnts
@@ -197,7 +201,7 @@ if args.gold:
                 if c.startswith('"'):
                     summary_text.append(c.strip('"'))
 
-            save_summary_text_path = os.path.join(args.output, name + '.bow')
-            with open(save_summary_text_path, 'w', encoding='utf-8') as file_:
+            save_summary_text_path = (args.output / name).with_suffix('.bow')
+            with save_summary_text_path.open('w', encoding='utf-8') as file_:
                 file_.write(' '.join(summary_text))
                 file_.write('\n')

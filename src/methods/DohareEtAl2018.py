@@ -11,8 +11,7 @@ from itertools import combinations, product
 
 def get_tf_idf(corpus, tf_idf_corpus_path):
     # Fit IDF counts
-    texts = [os.path.join(tf_idf_corpus_path, fn)
-             for fn in os.listdir(tf_idf_corpus_path)]
+    texts = list(tf_idf_corpus_path.iterdir())
     tf_idf = CountVectorizer(input='filename',
                              tokenizer=lambda txt: word_tokenize(txt, language='portuguese'))
     df_counts = tf_idf.fit_transform(texts)
