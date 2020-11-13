@@ -137,8 +137,8 @@ def run(corpus, alignment, **kwargs):
     training_path = kwargs.get('training')
     gold_path = kwargs.get('target')
     output_path = kwargs.get('output')
-    weights_path = kwargs.get('weights')
-    tf_idf_corpus_path = kwargs.get('tf_idf_corpus_path')
+    weights_path = kwargs.get('model')
+    tf_idf_corpus_path = kwargs.get('tfidf')
 
     if not weights_path and not (training_path and gold_path):
         raise ValueError('LiaoEtAl2018 method requires either training and '

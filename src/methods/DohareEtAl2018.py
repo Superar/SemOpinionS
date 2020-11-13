@@ -17,8 +17,9 @@ def get_tf_idf(corpus, tf_idf_corpus_path):
     df_counts = tf_idf.fit_transform(texts)
     num_docs = df_counts.shape[0]
 
-    df_counts[df_counts > 0] = 1 # Indicate only presence
-    df_counts = np.sum(df_counts, axis=0) # number of docs in which token is present
+    df_counts[df_counts > 0] = 1  # Indicate only presence
+    # number of docs in which token is present
+    df_counts = np.sum(df_counts, axis=0)
 
     # Write file to calculate TF counts
     tmp, tmp_name = tempfile.mkstemp()
@@ -33,9 +34,27 @@ def get_tf_idf(corpus, tf_idf_corpus_path):
     return tf_idf, tf_counts, df_counts, num_docs
 
 
+def get_concept_alignments(corpus, alignment):
+    concept_alignments = dict()
+    for _, snt, amr in corpus:
+        # Get words aligned to each concept
+        sent_alignment = alignment.get_alignments(snt.lower())
+        if sent_alignment:
+            for concept_var in amr.get_concept_nodes():
+                concept = amr.nodes[concept_var]['label']
+                if concept in sent_alignment:
+                    if concept in concept_alignments:
+                        concept_alignments[concept] |= set(
+                            sent_alignment[concept])
+                    else:
+                        concept_alignments[concept] = set(
+                            sent_alignment[concept])
+
+    return concept_alignments
+
+
 def preprocess(corpus, alignment):
     # Preprocessing
-    concept_alignments = dict()
     for id_, snt, amr in corpus:
         # Remove cycles
         for cycle in nx.simple_cycles(amr.as_weighted_DiGraph()):
@@ -49,17 +68,7 @@ def preprocess(corpus, alignment):
         for node in amr.nodes():
             if node not in largest_component:
                 amr.remove_node(node)
-
-        # Get words aligned to each concept
-        sent_alignment = alignment.get_alignments(snt.lower())
-        if sent_alignment:
-            for concept_var in amr.get_concept_nodes():
-                concept = amr.nodes[concept_var]['label']
-                if concept in sent_alignment:
-                    if concept in concept_alignments:
-                        concept_alignments[concept] |= set(sent_alignment[concept])
-                    else:
-                        concept_alignments[concept] = set(sent_alignment[concept])
+    concept_alignments = get_concept_alignments(corpus, alignment)
     merged_graph = corpus.merge_graphs()
     return merged_graph, concept_alignments
 
@@ -200,9 +209,16 @@ def get_summary_graph(corpus, expanded_data):
     return summary_graph
 
 
+def create_final_summary(corpus, important_concepts, alignment, open_ie):
+    selected_paths = get_important_paths(corpus, important_concepts)
+    expanded_paths = expand_paths(corpus, alignment, selected_paths, open_ie)
+    summary_graph = get_summary_graph(corpus, expanded_paths)
+    return summary_graph
+
+
 def run(corpus, alignment, **kwargs):
     open_ie = kwargs.get('open_ie')
-    tf_idf_corpus_path = kwargs.get('tf_idf_corpus_path')
+    tf_idf_corpus_path = kwargs.get('tfidf')
 
     tf_idf = get_tf_idf(corpus, tf_idf_corpus_path)
     merged_graph, concept_alignments = preprocess(corpus, alignment)
@@ -211,7 +227,6 @@ def run(corpus, alignment, **kwargs):
     concepts = concept_scores.most_common(10)  # Most important concepts
     important_concepts = [n for n, _ in concepts]
 
-    selected_paths = get_important_paths(corpus, important_concepts)
-    expanded_paths = expand_paths(corpus, alignment, selected_paths, open_ie)
-    summary_graph = get_summary_graph(corpus, expanded_paths)
+    summary_graph = create_final_summary(corpus, important_concepts,
+                                         alignment, open_ie)
     return summary_graph

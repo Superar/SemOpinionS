@@ -72,8 +72,8 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '--weights', '-w',
-    help='Pre-trained ILP weights',
+    '--model', '-mo',
+    help='Pre-trained model (ILP weights or ML model)',
     required=False
 )
 
@@ -82,6 +82,13 @@ parser.add_argument(
     help='Loss function to be used during ILP weight learning',
     required=False,
     default='perceptron'
+)
+
+parser.add_argument(
+    '--sentlex', '-s',
+    help='Path to a sentiment lexicon',
+    type=Path,
+    required=False
 )
 
 parser.add_argument(
@@ -119,16 +126,18 @@ if args.openie:
     open_ie = OpenIE.read_csv(args.openie)
     kwargs['open_ie'] = open_ie
 if args.tfidf:
-    kwargs['tf_idf_corpus_path'] = args.tfidf
+    kwargs['tfidf'] = args.tfidf
 if args.training:
     kwargs['training'] = args.training
 if args.target:
     kwargs['target'] = args.target
 if args.output:
     kwargs['output'] = args.output
-if args.weights:
-    kwargs['weights'] = args.weights
+if args.model:
+    kwargs['model'] = args.model
 kwargs['loss'] = args.loss
+if args.sentlex:
+    kwargs['sentlex'] = args.sentlex
 
 # Import the selected method
 method = import_module('src.methods.' + args.method)

@@ -141,7 +141,7 @@ class AMR(nx.MultiDiGraph):
 
     def get_concept_nodes(self):
         '''Returns a list of node names (variables) if they are not constants'''
-        return [n for n in self.nodes if self.nodes[n]]
+        return [n for n in self.nodes if self.nodes[n] and 'label' in self.nodes[n]]
 
     def get_constant_nodes(self):
         '''Returns a list of node names if they are constants'''
