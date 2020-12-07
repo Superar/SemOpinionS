@@ -43,7 +43,7 @@ def calculate_features(graph: AMR,
     pagerank = nx.algorithms.pagerank(graph.as_weighted_DiGraph())
     df['pagerank'] = [pagerank[n] for n in nodes]
     # Hits
-    hubs, authorities = nx.algorithms.hits(graph)
+    hubs, authorities = nx.algorithms.hits(graph, max_iter=500)
     df['hubs'] = [hubs[n] for n in nodes]
     df['authorities'] = [authorities[n] for n in nodes]
     # Degree
@@ -58,7 +58,7 @@ def calculate_features(graph: AMR,
         graph)
     df['degree centrality'] = [degree_centrality[n] for n in nodes]
     eigen_centrality = nx.algorithms.eigenvector_centrality(
-        graph.as_weighted_DiGraph())
+        graph.as_weighted_DiGraph(), max_iter=1000)
     df['eigenvector centrality'] = [eigen_centrality[n] for n in nodes]
     closeness = nx.algorithms.closeness_centrality(graph)
     df['closeness'] = [closeness[n] for n in nodes]
