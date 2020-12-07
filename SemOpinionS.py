@@ -81,6 +81,7 @@ parser.add_argument(
     '--loss', '-l',
     help='Loss function to be used during ILP weight learning',
     required=False,
+    choices=['perceptron', 'ramp'],
     default='perceptron'
 )
 
@@ -89,6 +90,14 @@ parser.add_argument(
     help='Path to a sentiment lexicon',
     type=Path,
     required=False
+)
+
+parser.add_argument(
+    '--similarity', '-sim',
+    help='Similarity metric to use for Spectral Clustering',
+    required=False,
+    choices=['lcs', 'smatch', 'concept_coverage'],
+    default='lcs'
 )
 
 parser.add_argument(
@@ -138,6 +147,7 @@ if args.model:
 kwargs['loss'] = args.loss
 if args.sentlex:
     kwargs['sentlex'] = args.sentlex
+kwargs['similarity'] = args.similarity
 
 # Import the selected method
 method = import_module('src.methods.' + args.method)

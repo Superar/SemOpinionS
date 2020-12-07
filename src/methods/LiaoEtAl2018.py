@@ -4,10 +4,18 @@ from concurrent.futures import ThreadPoolExecutor
 from itertools import repeat
 from multiprocessing import cpu_count
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.cluster import SpectralClustering
 from nltk import word_tokenize
+from pylcs import lcs
+from smatch import get_amr_match, compute_f
+from random import sample
 import pandas as pd
 import numpy as np
-from .LiuEtAl2015 import update_weights, calculate_node_data, calculate_edge_data, graph_local_representations, ilp_optimisation
+from .LiuEtAl2015 import (update_weights,
+                          calculate_node_data,
+                          calculate_edge_data,
+                          graph_local_representations,
+                          ilp_optimisation)
 from .DohareEtAl2018 import preprocess, score_concepts
 from ..document import Document
 from .DohareEtAl2018 import get_tf_idf as Dohare_tf_idf
@@ -133,18 +141,44 @@ def get_tf_idf(training_path, gold_path, tf_idf_path):
     return tf_idf, tf_counts, df_counts, num_docs, doc_to_index
 
 
+def calculate_similarity_matrix(corpus, metric):
+    ids = [id_ for id_, _, _ in corpus]
+
+    similarity = pd.DataFrame(0, columns=ids, index=ids)
+    for id1 in ids:
+        for id2 in ids:
+            if metric == 'lcs':
+                sim = lcs(corpus[id1].snt, corpus[id2].snt)
+            elif metric == 'smatch':
+                match = get_amr_match(str(corpus[id1].amr),
+                                      str(corpus[id2].amr))
+                _, _, sim = compute_f(*match)
+            elif metric == 'concept_coverage':
+                amr1 = str(corpus[id1].amr)
+                amr2 = str(corpus[id2].amr)
+                match_instances = get_amr_match(amr1, amr2,
+                                                justinstance=True)
+                match_attribs = get_amr_match(amr1, amr2,
+                                              justattribute=True)
+                match = tuple(map(sum, zip(match_instances, match_attribs)))
+                _, sim, _ = compute_f(*match)
+            similarity.loc[id1, id2] = sim
+    return similarity
+
+
 def run(corpus, alignment, **kwargs):
     training_path = kwargs.get('training')
     gold_path = kwargs.get('target')
     output_path = kwargs.get('output')
     weights_path = kwargs.get('model')
     tf_idf_corpus_path = kwargs.get('tfidf')
+    similarity = kwargs.get('similarity')
 
     if not weights_path and not (training_path and gold_path):
         raise ValueError('LiaoEtAl2018 method requires either training and '
                          'target arguments or pre-trained weights')
     if not tf_idf_corpus_path:
-        raise ValueError('LiaoEtAl2018 method requires'
+        raise ValueError('LiaoEtAl2018 method requires '
                          'a larger corpus to calculate TF-IDF')
 
     if not weights_path and (training_path and gold_path):
@@ -155,10 +189,24 @@ def run(corpus, alignment, **kwargs):
         weights = pd.read_csv(weights_path, index_col=0, squeeze=True)
 
     if corpus:
-        merged_test_graph = corpus.merge_graphs(collapse_ner=True,
-                                                collapse_date=True)
-        test_node_data = calculate_node_data(corpus, alignment)
-        test_edge_data = calculate_edge_data(corpus)
+        # Clustering
+        similarity_matrix = calculate_similarity_matrix(corpus, similarity)
+        clt = SpectralClustering(n_clusters=5, affinity='precomputed')
+        clusters = pd.Series(clt.fit_predict(similarity_matrix),
+                             index=similarity_matrix.index,
+                             name='cluster')
+        selected_sentences = list()
+        for _, g in clusters.groupby(clusters):
+            if len(g.index) <= 5:
+                selected_sentences.extend(g.index.to_list())
+            else:
+                selected_sentences.extend(sample(g.index.to_list(), 5))
+        clustered_corpus = Document([corpus[id_]
+                                     for id_ in selected_sentences])
+        merged_test_graph = clustered_corpus.merge_graphs(collapse_ner=True,
+                                                          collapse_date=True)
+        test_node_data = calculate_node_data(clustered_corpus, alignment)
+        test_edge_data = calculate_edge_data(clustered_corpus)
         test_repr = graph_local_representations(merged_test_graph,
                                                 test_node_data,
                                                 test_edge_data)
