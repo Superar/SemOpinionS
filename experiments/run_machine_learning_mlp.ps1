@@ -1,12 +1,13 @@
 # Training
-# .\SemOpinionS.py -m machine_learning `
-#     -t ..\Corpora\Training-AMR\all\training `
-#     -tt ..\Corpora\Training-AMR\all\target `
-#     -a ..\Corpora\AMR-PT-OP\SPAN-MANUAL\combined_manual_training_target_jamr.txt `
-#     -af jamr `
-#     -s ..\Ferramentas\oplexicon_v3.0\lexico_v3.0.txt `
-#     --tfidf ..\Corpora\Reviews\b2w-reviews01_ReLi `
-#     -o out
+python .\SemOpinionS.py -m machine_learning `
+    -t ..\Corpora\Training-AMR\all\training `
+    -tt ..\Corpora\Training-AMR\all\target `
+    -a ..\Corpora\AMR-PT-OP\SPAN-MANUAL\combined_manual_training_target_jamr.txt `
+    -af jamr `
+    -s ..\Ferramentas\oplexicon_v3.0\lexico_v3.0.txt `
+    --tfidf ..\Corpora\Reviews\b2w-reviews01_ReLi `
+    -ml mlp `
+    -o out
 
 # Run Summarizaztion
 python .\SemOpinionS.py -m machine_learning `

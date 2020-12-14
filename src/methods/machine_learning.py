@@ -5,6 +5,9 @@ from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import cpu_count
 from itertools import repeat
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import cross_validate
 from .score_optimization import prepare_training_data, get_tf_idf, integrate_sentiment, get_concept_alignments, calculate_features
 from .DohareEtAl2018 import create_final_summary
@@ -17,7 +20,7 @@ from .DohareEtAl2018 import get_tf_idf as Dohare_tf_idf
 
 def train(training_path: Path, target_path: Path,
           sentlex: SentimentLexicon, tf_idf_path: Path,
-          alignment: Alignment) -> DecisionTreeClassifier:
+          alignment: Alignment, type_=str) -> DecisionTreeClassifier:
     training_files = list(training_path.iterdir())
     target_files = list(target_path.iterdir())
     tf_idf = get_tf_idf(training_path, target_path, tf_idf_path)
@@ -34,7 +37,14 @@ def train(training_path: Path, target_path: Path,
     feats = data.loc[:, data.columns != 'class']
     objective = data.loc[:, 'class']
 
-    clf = DecisionTreeClassifier()
+    if type_ == 'decision_tree':
+        clf = DecisionTreeClassifier()
+    elif type_ == 'random_forest':
+        clf = RandomForestClassifier()
+    elif type_ == 'svm':
+        clf = SVC()
+    elif type_ == 'mlp':
+        clf = MLPClassifier()
     clf.fit(feats, objective)
     return clf
 
@@ -47,12 +57,13 @@ def run(corpus: Document, alignment: Alignment, **kwargs) -> AMR:
     tf_idf_path = kwargs.get('tfidf')
     model_path = kwargs.get('model')
     open_ie = kwargs.get('open_ie')
+    machine_learning = kwargs.get('machine_learning')
     output_path = kwargs.get('output')
 
     if not model_path and (training_path and target_path):
         model = train(training_path, target_path,
                       sentlex, tf_idf_path,
-                      alignment)
+                      alignment, machine_learning)
         dump(model, output_path / 'model.joblib')
     elif model_path:
         model = load(model_path)

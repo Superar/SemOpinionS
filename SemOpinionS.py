@@ -101,6 +101,14 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    '--machine_learning', '-ml',
+    help='Which Machine Learning algorithm to use with Machine Learning methods',
+    required=False,
+    choices=['decision_tree', 'random_forest', 'svm', 'mlp'],
+    default='decision_tree'
+)
+
+parser.add_argument(
     '--output', '-o',
     help='Output directory',
     type=Path,
@@ -148,6 +156,7 @@ kwargs['loss'] = args.loss
 if args.sentlex:
     kwargs['sentlex'] = args.sentlex
 kwargs['similarity'] = args.similarity
+kwargs['machine_learning'] = args.machine_learning
 
 # Import the selected method
 method = import_module('src.methods.' + args.method)

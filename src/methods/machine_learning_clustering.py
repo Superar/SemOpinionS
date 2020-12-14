@@ -21,12 +21,13 @@ def run(corpus: Document, alignment: Alignment, **kwargs) -> AMR:
     model_path = kwargs.get('model')
     open_ie = kwargs.get('open_ie')
     similarity = kwargs.get('similarity')
+    machine_learning = kwargs.get('machine_learning')
     output_path = kwargs.get('output')
 
     if not model_path and (training_path and target_path):
         model = train(training_path, target_path,
                       sentlex, tf_idf_path,
-                      alignment)
+                      alignment, machine_learning)
         dump(model, output_path / 'model.joblib')
     elif model_path:
         model = load(model_path)
