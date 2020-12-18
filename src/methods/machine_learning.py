@@ -1,4 +1,6 @@
 import pandas as pd
+import numpy as np
+import networkx as nx
 from pathlib import Path
 from joblib import dump, load
 from concurrent.futures import ThreadPoolExecutor
@@ -20,7 +22,7 @@ from .DohareEtAl2018 import get_tf_idf as Dohare_tf_idf
 
 def train(training_path: Path, target_path: Path,
           sentlex: SentimentLexicon, tf_idf_path: Path,
-          alignment: Alignment, type_=str) -> DecisionTreeClassifier:
+          alignment: Alignment, type_: str, levi: bool = False) -> DecisionTreeClassifier:
     training_files = list(training_path.iterdir())
     target_files = list(target_path.iterdir())
     tf_idf = get_tf_idf(training_path, target_path, tf_idf_path)
@@ -31,7 +33,8 @@ def train(training_path: Path, target_path: Path,
                               target_files,
                               repeat(sentlex),
                               repeat(alignment),
-                              repeat(tf_idf))
+                              repeat(tf_idf),
+                              repeat(levi))
 
     data = pd.concat(result)
     feats = data.loc[:, data.columns != 'class']
@@ -58,18 +61,21 @@ def run(corpus: Document, alignment: Alignment, **kwargs) -> AMR:
     model_path = kwargs.get('model')
     open_ie = kwargs.get('open_ie')
     machine_learning = kwargs.get('machine_learning')
+    levi = kwargs.get('levi')
     output_path = kwargs.get('output')
 
     if not model_path and (training_path and target_path):
         model = train(training_path, target_path,
                       sentlex, tf_idf_path,
-                      alignment, machine_learning)
+                      alignment, machine_learning, levi)
         dump(model, output_path / 'model.joblib')
     elif model_path:
         model = load(model_path)
 
     if corpus:
         merged_graph = corpus.merge_graphs()
+        if levi:
+            merged_graph = merged_graph.as_levi_graph()
         integrate_sentiment(merged_graph, sentlex)
         tf_idf = Dohare_tf_idf(corpus, tf_idf_path)
         concept_alignments = get_concept_alignments(corpus, alignment)
@@ -77,9 +83,49 @@ def run(corpus: Document, alignment: Alignment, **kwargs) -> AMR:
                                         concept_alignments, tf_idf)
 
         predictions = model.predict(test_feats)
-        selected_nodes = test_feats.index[predictions]
-        important_concepts = [merged_graph.get_node_label(n)
+        selected_nodes = test_feats.index[predictions].to_list()
+
+        if levi:
+            changed = True
+            selected_relations = [t for _, t, d
+                                  in merged_graph.in_edges(selected_nodes, data=True)
+                                  if d['label'] == 'in']
+            while changed:
+                # Include nodes associated with selected relations in a greedy manner
+                changed = False
+                for rel in selected_relations:
+                    in_concept = list(merged_graph.predecessors(rel))[0]
+                    out_concept = list(merged_graph.successors(rel))[0]
+                    if in_concept in selected_nodes and out_concept not in selected_nodes:
+                        # Include out_concept because in_concept was selected
+                        selected_nodes.append(out_concept)
+                        changed = True
+                    elif out_concept in selected_nodes and in_concept not in selected_nodes:
+                        # Include in_concept because out_concept was selected
+                        selected_nodes.append(in_concept)
+                        changed = True
+
+            # Get only those relations with both concepts also selected
+            sum_relations = [r for r in selected_relations
+                             if all([c in selected_nodes
+                                     for c in merged_graph.to_undirected().neighbors(r)])]
+            sum_triples = [(list(merged_graph.predecessors(r))[0],
+                            list(merged_graph.successors(r))[0],
+                            f':{merged_graph.nodes[r]["label"]}') for r in sum_relations]
+            summary_graph = corpus.merge_graphs().edge_subgraph(sum_triples).copy()
+
+            # Remove disconnected nodes
+            largest_component = max(nx.connected_components(summary_graph.to_undirected()),
+                                    key=len)
+            disconnected_nodes = list()
+            for node in summary_graph.nodes():
+                if node not in largest_component:
+                    disconnected_nodes.append(node)
+            summary_graph.remove_nodes_from(disconnected_nodes)
+            return summary_graph
+        else:
+            important_concepts = [merged_graph.get_node_label(n)
                               for n in selected_nodes]
-        summary_graph = create_final_summary(corpus, important_concepts,
-                                             alignment, open_ie)
-        return summary_graph
+            summary_graph = create_final_summary(corpus, important_concepts,
+                                                alignment, open_ie)
+            return summary_graph

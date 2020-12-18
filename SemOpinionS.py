@@ -109,6 +109,21 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    '--levi',
+    help='Whether to use Levi Graphs (relations represented as nodes) or not. Works with only some methods',
+    required=False,
+    action='store_true'
+)
+
+parser.add_argument(
+    '--aspects',
+    '-asp',
+    help='Annotation file for the aspects of the products. This is used as a feature in some methods',
+    type=Path,
+    required=False
+)
+
+parser.add_argument(
     '--output', '-o',
     help='Output directory',
     type=Path,
@@ -155,8 +170,11 @@ if args.model:
 kwargs['loss'] = args.loss
 if args.sentlex:
     kwargs['sentlex'] = args.sentlex
+if args.aspects:
+    kwargs['aspects'] = args.aspects
 kwargs['similarity'] = args.similarity
 kwargs['machine_learning'] = args.machine_learning
+kwargs['levi'] = args.levi
 
 # Import the selected method
 method = import_module('src.methods.' + args.method)

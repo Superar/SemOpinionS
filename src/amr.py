@@ -112,6 +112,19 @@ class AMR(nx.MultiDiGraph):
 
         return dg
 
+    def as_levi_graph(self):
+        ''' Turns all relations into nodes '''
+        new_graph = self.copy()
+        edges_to_remove = list()
+        for s, t, r in self.edges:
+            if r != ':TOP':
+                c_var = new_graph.add_concept(r.lstrip(':'))
+                new_graph.add_edge(s, c_var, key='in', label='in')
+                new_graph.add_edge(c_var, t, key='out', label='out')
+                edges_to_remove.append((s, t, r))
+        new_graph.remove_edges_from(edges_to_remove)
+        return new_graph
+
     def variables(self):
         '''Returns a set of node names (variables) if they are not constants'''
         return {n for n in self.nodes if self.nodes[n]}

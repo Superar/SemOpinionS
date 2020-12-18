@@ -82,13 +82,17 @@ def calculate_features(graph: AMR,
 
 def prepare_training_data(training_path: Path, gold_path: Path,
                           sentlex: SentimentLexicon, alignment: Alignment,
-                          tf_idf_counts: tuple) -> pd.DataFrame:
+                          tf_idf_counts: tuple, levi: bool = False) -> pd.DataFrame:
     training_corpus = Document.read(training_path)
     training_graph = training_corpus.merge_graphs()
+    if levi:
+        training_graph = training_graph.as_levi_graph()
     integrate_sentiment(training_graph, sentlex)
 
     gold_corpus = Document.read(gold_path)
     gold_graph = gold_corpus.merge_graphs()
+    if levi:
+        gold_graph = gold_graph.as_levi_graph()
     gold_concepts = [gold_graph.get_node_label(n) for n in gold_graph]
 
     concept_alignments = get_concept_alignments(training_corpus, alignment)
