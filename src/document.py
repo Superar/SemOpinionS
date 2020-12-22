@@ -1,4 +1,5 @@
 from collections import namedtuple
+from pathlib import Path
 import penman
 import networkx as nx
 from .amr import AMR
@@ -13,8 +14,9 @@ class Document(object):
     '''
     doc_item = namedtuple('DocumentSent', ['id', 'snt', 'amr'])
 
-    def __init__(self, corpus):
+    def __init__(self, corpus, corpus_path=None):
         self.corpus = corpus
+        self.path = corpus_path
 
     def __iter__(self):
         return iter(self.corpus)
@@ -23,6 +25,9 @@ class Document(object):
         for doc in self:
             if doc.id == item:
                 return doc
+    
+    def __contains__(self, item):
+        return bool(self.__getitem__(item))
 
     @classmethod
     def read(cls, corpus_path):
@@ -44,7 +49,7 @@ class Document(object):
             corpus.append(cls.doc_item(penman_g.metadata['id'],
                                        penman_g.metadata['snt'],
                                        amr))
-        return cls(corpus)
+        return cls(corpus, Path(corpus_path))
 
     def merge_graphs(self, collapse_ner=False, collapse_date=False):
         '''
@@ -81,8 +86,8 @@ class Document(object):
         # This should not affect well-formed AMR graphs
         largest_component = max(nx.connected_components(merge_graph.to_undirected()),
                                 key=len)
-        nodes_to_remove = [
-            n for n in merge_graph.nodes() if n not in largest_component]
+        nodes_to_remove = [n for n in merge_graph.nodes()
+                           if n not in largest_component]
         merge_graph.remove_nodes_from(nodes_to_remove)
 
         return merge_graph

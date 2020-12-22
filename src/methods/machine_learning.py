@@ -11,7 +11,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import cross_validate
-from .score_optimization import prepare_training_data, get_tf_idf, integrate_sentiment, get_concept_alignments, calculate_features
+from .score_optimization import (prepare_training_data, get_tf_idf, integrate_sentiment,
+                                 get_concept_alignments, calculate_features, get_aspect_list)
 from .DohareEtAl2018 import create_final_summary
 from ..document import Document
 from ..alignment import Alignment
@@ -22,7 +23,8 @@ from .DohareEtAl2018 import get_tf_idf as Dohare_tf_idf
 
 def train(training_path: Path, target_path: Path,
           sentlex: SentimentLexicon, tf_idf_path: Path,
-          alignment: Alignment, type_: str, levi: bool = False) -> DecisionTreeClassifier:
+          alignment: Alignment, type_: str, levi: bool = False,
+          aspects: Path = None) -> DecisionTreeClassifier:
     training_files = list(training_path.iterdir())
     target_files = list(target_path.iterdir())
     tf_idf = get_tf_idf(training_path, target_path, tf_idf_path)
@@ -34,7 +36,8 @@ def train(training_path: Path, target_path: Path,
                               repeat(sentlex),
                               repeat(alignment),
                               repeat(tf_idf),
-                              repeat(levi))
+                              repeat(levi),
+                              repeat(aspects))
 
     data = pd.concat(result)
     feats = data.loc[:, data.columns != 'class']
@@ -62,6 +65,7 @@ def run(corpus: Document, alignment: Alignment, **kwargs) -> AMR:
     open_ie = kwargs.get('open_ie')
     machine_learning = kwargs.get('machine_learning')
     levi = kwargs.get('levi')
+    aspects = kwargs.get('aspects')
     output_path = kwargs.get('output')
 
     if not model_path and (training_path and target_path):
@@ -79,8 +83,11 @@ def run(corpus: Document, alignment: Alignment, **kwargs) -> AMR:
         integrate_sentiment(merged_graph, sentlex)
         tf_idf = Dohare_tf_idf(corpus, tf_idf_path)
         concept_alignments = get_concept_alignments(corpus, alignment)
+
+        aspect_list = get_aspect_list(aspects, corpus.path.name)
         test_feats = calculate_features(merged_graph, sentlex,
-                                        concept_alignments, tf_idf)
+                                        concept_alignments, tf_idf,
+                                        aspect_list)
 
         predictions = model.predict(test_feats)
         selected_nodes = test_feats.index[predictions].to_list()

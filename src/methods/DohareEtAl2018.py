@@ -204,7 +204,7 @@ def get_summary_graph(corpus, expanded_data):
                                 corpus[sent_id].snt,
                                 corpus[sent_id].amr.subgraph(path).copy())
         summary_tuples.append(doc)
-    summary_doc = Document(summary_tuples)
+    summary_doc = Document(summary_tuples, None)
     summary_graph = summary_doc.merge_graphs()
     return summary_graph
 

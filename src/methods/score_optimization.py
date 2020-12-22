@@ -1,4 +1,5 @@
 import re
+import json
 import pandas as pd
 import networkx as nx
 import numpy as np
@@ -30,7 +31,8 @@ def integrate_sentiment(graph: AMR, sentlex: SentimentLexicon) -> None:
 def calculate_features(graph: AMR,
                        sentlex: SentimentLexicon,
                        concept_alignments: dict,
-                       tf_idf_counts: tuple) -> pd.DataFrame:
+                       tf_idf_counts: tuple,
+                       aspect_list: list) -> pd.DataFrame:
     nodes = [n for n in graph]
     df = pd.DataFrame(index=nodes)
 
@@ -76,13 +78,26 @@ def calculate_features(graph: AMR,
     df['tf'] = [scores[graph.get_node_label(n)] for n in nodes]
     # Node depth
     df['depth'] = [graph.get_node_depth(n) for n in nodes]
-
+    # Aspect
+    if aspect_list:
+        aspect = list()
+        for n in nodes:
+            concept = graph.get_node_label(n)
+            concept_aspect = 0
+            if concept in concept_alignments:
+                concept_alignment = concept_alignments[concept]
+                for w in concept_alignment:
+                    if w in aspect_list:
+                        concept_aspect = 1
+                        break
+            aspect.append(concept_aspect)
     return df
 
 
 def prepare_training_data(training_path: Path, gold_path: Path,
                           sentlex: SentimentLexicon, alignment: Alignment,
-                          tf_idf_counts: tuple, levi: bool = False) -> pd.DataFrame:
+                          tf_idf_counts: tuple, levi: bool = False,
+                          aspects: Path = None) -> pd.DataFrame:
     training_corpus = Document.read(training_path)
     training_graph = training_corpus.merge_graphs()
     if levi:
@@ -99,9 +114,12 @@ def prepare_training_data(training_path: Path, gold_path: Path,
     tf_idf, tf_counts, df_counts, num_docs, doc_to_index = tf_idf_counts
     doc_tf = tf_counts[doc_to_index[('training', training_path.name)], :]
 
+    aspect_list = get_aspect_list(aspects, training_path.name)
+
     # Get features
     df = calculate_features(training_graph, sentlex, concept_alignments,
-                            (tf_idf, doc_tf, df_counts, num_docs))
+                            (tf_idf, doc_tf, df_counts, num_docs),
+                            aspect_list)
     # Class
     df['class'] = [True if training_graph.get_node_label(n) in gold_concepts
                    else False
@@ -110,6 +128,16 @@ def prepare_training_data(training_path: Path, gold_path: Path,
     # Add a new index level to indicate which instance this is
     df = pd.concat({str(training_path.stem): df}, names=['instance'])
     return df
+
+
+def get_aspect_list(aspects: Path, corpus_name: str) -> list:
+    aspect_list = list()
+    if aspects:
+        with aspects.open(encoding='utf-8') as f:
+            aspects = json.load(f)
+        for k in aspects[corpus_name]:
+            aspect_list.extend(map(str.lower, aspects[corpus_name][k]))
+    return aspect_list
 
 
 def fitness_function(weights: np.ndarray, data: pd.DataFrame) -> float:
@@ -204,6 +232,7 @@ def run(corpus: Document, alignment: Alignment, **kwargs) -> AMR:
     tf_idf_path = kwargs.get('tfidf')
     weights_path = kwargs.get('model')
     open_ie = kwargs.get('open_ie')
+    aspects = kwargs.get('aspects')
     output_path = kwargs.get('output')
 
     if not weights_path and (training_path and target_path):
@@ -219,8 +248,10 @@ def run(corpus: Document, alignment: Alignment, **kwargs) -> AMR:
         integrate_sentiment(merged_graph, sentlex)
         tf_idf = Dohare_tf_idf(corpus, tf_idf_path)
         concept_alignments = get_concept_alignments(corpus, alignment)
+        aspect_list = get_aspect_list(aspects, corpus.path.name)
         test_feats = calculate_features(merged_graph, sentlex,
-                                        concept_alignments, tf_idf)
+                                        concept_alignments, tf_idf,
+                                        aspect_list)
         combination = (weights * test_feats).sum(axis='columns')
         selected_nodes = combination.nlargest(10).index
         important_concepts = [merged_graph.get_node_label(n)
