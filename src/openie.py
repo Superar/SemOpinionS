@@ -2,21 +2,21 @@ import pandas as pd
 
 
 class OpenIE(object):
-    '''
+    """
     Class that represents the data triples from an Information Extraction tool.
 
     Attributes:
         triples (pandas.DataFrame): DataFrame contanining all triples with the following columns:
                                     sentence id, triple id (within sentence),
                                     arg0, relation, arg1
-    '''
+    """
 
     def __init__(self, data):
         self.triples = data
 
     @classmethod
-    def read_csv(cls, filename):
-        '''
+    def read_csv(cls, filename: str):
+        """
         Reads a CSV file containing all necessary information in specific collumns.
             - Sentence id (column 0)
             - Triple id (column 2)
@@ -29,7 +29,7 @@ class OpenIE(object):
 
         Returns:
             OpenIE: corresponding object itinialized with the pandas.DataFrame
-        '''
+        """
         df = pd.read_csv(filename, sep=';',
                          usecols=[0, 2, 3, 4, 5],
                          names=['sent_id', 'triple_id', 'arg0', 'rel', 'arg1'],
@@ -41,6 +41,6 @@ class OpenIE(object):
         df['sent_len'] = df['words'].apply(len)
         return cls(df)
 
-    def get_triples(self, sent_id):
-        '''Return all triples whithin the sentence with the given sentence id.'''
+    def get_triples(self, sent_id) -> pd.DataFrame:
+        """Return all triples whithin the sentence with the given sentence id."""
         return self.triples.groupby(by='sent_id').get_group(sent_id)

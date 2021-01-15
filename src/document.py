@@ -6,22 +6,22 @@ from .amr import AMR
 
 
 class Document(object):
-    '''
+    """
     Class that reads a file with AMR graphs in penman notation.
 
     Attributes:
         corpus: list of tuples (id, sentence, AMR)
-    '''
+    """
     doc_item = namedtuple('DocumentSent', ['id', 'snt', 'amr'])
 
-    def __init__(self, corpus, corpus_path=None):
+    def __init__(self, corpus: list, corpus_path: Path = None):
         self.corpus = corpus
         self.path = corpus_path
 
     def __iter__(self):
         return iter(self.corpus)
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: str):
         for doc in self:
             if doc.id == item:
                 return doc
@@ -30,8 +30,8 @@ class Document(object):
         return bool(self.__getitem__(item))
 
     @classmethod
-    def read(cls, corpus_path):
-        '''
+    def read(cls, corpus_path: Path):
+        """
         Creates an object from a file containing ids, sentences and
         AMR graphs in penman notation.
 
@@ -40,7 +40,7 @@ class Document(object):
 
         Returns:
             Document: An object with all read AMR graphs
-        '''
+        """
         corpus = list()
         with open(corpus_path, encoding='utf-8') as corpusfile:
             corpusstr = corpusfile.read()
@@ -51,8 +51,8 @@ class Document(object):
                                        amr))
         return cls(corpus, Path(corpus_path))
 
-    def merge_graphs(self, collapse_ner=False, collapse_date=False):
-        '''
+    def merge_graphs(self, collapse_ner: bool = False, collapse_date: bool = False) -> AMR:
+        """
         Merges all AMR graphs in the current document into a single representation.
 
         Parameters:
@@ -61,7 +61,7 @@ class Document(object):
 
         Return:
             AMR: A single representation of all AMR graphs in the document merged
-        '''
+        """
         merge_graph = AMR()
         for amr in self.corpus:
             merge_graph = merge_graph.merge(amr.amr,

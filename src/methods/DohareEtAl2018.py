@@ -3,13 +3,33 @@ import tempfile
 import networkx as nx
 import numpy as np
 from ..document import Document
+from ..alignment import Alignment
+from ..amr import AMR
+from ..openie import OpenIE
 from nltk import word_tokenize
 from sklearn.feature_extraction.text import CountVectorizer
+from scipy.sparse import csr_matrix
 from collections import Counter
 from itertools import combinations, product
+from typing import Tuple, Dict
+from pathlib import Path
 
 
-def get_tf_idf(corpus, tf_idf_corpus_path):
+def get_tf_idf(corpus: Document, tf_idf_corpus_path: Path) -> Tuple[CountVectorizer, csr_matrix, csr_matrix, int]:
+    """
+    Calculate both Term Frequency (TF) and Document Frequency (DF) counts for the words in given corpora.
+    `corpus` is the one to calculate TF, while `tf_idf_corpus_path` is the one to use for DF counts.
+    This also returns the number of documents used to calculate the DF.
+
+    Parameters:
+        corpus (Document): The corpus to calculate the TF.
+        tf_idf_corpus_path (Path): The corpus to calculate the DF.
+    
+    Returns:
+        tuple(CountVectorizer, csr_matrix, csr_matrix, int): Tuple containing the CountVectorizer
+        (sklearn) object used in the counting, the matrices for both TF and DF (in this order) and,
+        finally the number of documents processed to calculate the DF.
+    """
     # Fit IDF counts
     texts = list(tf_idf_corpus_path.iterdir())
     tf_idf = CountVectorizer(input='filename',
@@ -34,7 +54,17 @@ def get_tf_idf(corpus, tf_idf_corpus_path):
     return tf_idf, tf_counts, df_counts, num_docs
 
 
-def get_concept_alignments(corpus, alignment):
+def get_concept_alignments(corpus: Document, alignment: Alignment) -> Dict[str, str]:
+    """
+    Creates a mapping from concepts to words according to the `alignment` for the given `corpus`.
+
+    Parameters:
+        corpus (Document): The corpus beign summarized.
+        alignment (Alignment): Concept alignments for the `corpus`.
+    
+    Returns:
+        dict(str, str): Dictionary mapping concepts (node labels) to words in the sentences from `corpus`.
+    """
     concept_alignments = dict()
     for _, snt, amr in corpus:
         # Get words aligned to each concept
@@ -53,7 +83,19 @@ def get_concept_alignments(corpus, alignment):
     return concept_alignments
 
 
-def preprocess(corpus, alignment):
+def preprocess(corpus: Document, alignment: Alignment) -> Tuple[AMR, Dict[str, str]]:
+    """
+    Preprocessing and data extraction. Removes cycles from the AMR graphs in the `corpus`.
+    Also removes possible disconnected nodes. Finally it merges all sentence graphs into one.
+    This function also creates a mapping from concepts to their aligned words.
+
+    Parameters:
+        corpus(Document): The corpus beign summarized.
+        alignment(Alignment): Concept alignments for the `corpus`.
+
+    Returns:
+        tuple(AMR, dict): Tuple containing the merged graph and the mapping of concepts to words.
+    """
     # Preprocessing
     for id_, snt, amr in corpus:
         # Remove cycles
@@ -73,7 +115,18 @@ def preprocess(corpus, alignment):
     return merged_graph, concept_alignments
 
 
-def score_concepts(merged_graph, counts, concept_alignments):
+def score_concepts(merged_graph: AMR, counts: tuple, concept_alignments: Dict[str, str]) -> Counter:
+    """
+    Calculate TF-IDF counts for each node(concept) in `merged_graph` according to their aligned words.
+
+    Parameters:
+        merged_graph(AMR): Graph which contains the concept to be scored.
+        counts(tuple): A tuple returned by the DohareEtAl2018.get_tf_idf() function.
+        concept_alignments(dict): A dictionary that maps concepts into a list of words.
+
+    Returns:
+        Counter: All TF-IDF scores for each concept. If the concept does not exist, the score is 0.
+    """
     tf_idf, tf_counts, df_counts, num_docs = counts
     # Get score for each node
     concept_scores = dict()
@@ -95,11 +148,25 @@ def score_concepts(merged_graph, counts, concept_alignments):
     return concept_scores
 
 
-def get_important_paths(corpus, important_concepts):
+def get_important_paths(corpus: Document, important_concepts: list) -> list:
+    """
+    Get the best path between each pair of concepts in `important_concepts`.
+    The best path is defined as the one closest to the root in the first sentence that
+    contains both concepts.
+
+    Parameters:
+        corpus(Document): The corpus being summarized.
+        imporant_concepts(list): List of concepts(actual labels, not variables) selected
+        to be included in the summary.
+
+    Returns:
+        list: List of tuples(concept_1, concept_2, sentence_id, path)
+        containing the selected paths.
+    """
     selected_data = list()  # Of tuples (concept_1, concept_2, sentence_id, path)
     for c1, c2 in combinations(important_concepts, 2):
         for doc in corpus:
-            # Search both concepts in the graph
+            # Search first sentence with both concepts in the graph
             nodes_c1 = list()
             nodes_c2 = list()
             for c in doc.amr.get_concept_nodes():
@@ -124,14 +191,26 @@ def get_important_paths(corpus, important_concepts):
                         if p_depth < selected_path_depth:
                             selected_path = p
                             selected_path_depth = p_depth
-                # doc.amr.draw('selected_paths/{}_{}_{}.pdf'.format(doc.id,c1,c2), highlight_subgraph=selected_path)
                 selected_data.append((c1, c2, doc.id, selected_path))
                 break
     return selected_data
 
 
-def expand_paths(corpus, alignment, selected_data, open_ie):
-    # Expand selected paths using OpenIE tuples
+def expand_paths(corpus: Document, alignment: Alignment,
+                 selected_data: list, open_ie: OpenIE) -> list:
+    """
+    Expand selected paths using  OpenIE tuples.
+
+    Parameters:
+        corpus(Document): The corpus being summarized.
+        alignment(Alignment): Concept alignments for the `corpus`.
+        selected_data(list): List of tuples(concept_1, concept2, sentence_id, path)
+        containing the path between two concepts in a sentence from `corpus`.
+        open_ie(OpenIE): OpenIE triples information for the `corpus`.
+
+    Returns:
+        list: List of tuples(sentence_id, expanded_path) with each path from `selected_data` expanded.
+    """
     expanded_data = list()  # Of tuples (sent_id, expanded_path)
     for _, _, sent_id, path in selected_data:
         triples = open_ie.get_triples(sent_id)
@@ -196,7 +275,17 @@ def expand_paths(corpus, alignment, selected_data, open_ie):
     return expanded_data
 
 
-def get_summary_graph(corpus, expanded_data):
+def get_summary_graph(corpus: Document, expanded_data: list) -> AMR:
+    """
+    Merges all important subgraphs from `corpus` with the information from `expanded_data`.
+
+    Parameters:
+        corpus(Document): The corpus being summarized.
+        expanded_data(list): List with all important expanded paths.
+
+    Returns:
+        AMR: Summary graph.
+    """
     # Construct summary graph by merging all subgraphs
     summary_tuples = list()
     for sent_id, path in expanded_data:
@@ -209,14 +298,39 @@ def get_summary_graph(corpus, expanded_data):
     return summary_graph
 
 
-def create_final_summary(corpus, important_concepts, alignment, open_ie):
+def create_final_summary(corpus: Document, important_concepts: list,
+                         alignment: Alignment, open_ie: OpenIE) -> AMR:
+    """
+    Creates the final summary graph by finding the paths to be included
+    between important concepts, as well as expanding these paths using
+    OpenIE triples information.
+
+    Parameters:
+        corpus(Document): The corpus being summarized.
+        important_concepts(list): List with all important nodes to be included in the summary.
+        alignment(Alignment): Concept alignments for the `corpus`.
+        open_ie(OpenIE): OpenIE triples information.
+
+    Returns:
+        AMR: Summary graph.
+    """
     selected_paths = get_important_paths(corpus, important_concepts)
     expanded_paths = expand_paths(corpus, alignment, selected_paths, open_ie)
     summary_graph = get_summary_graph(corpus, expanded_paths)
     return summary_graph
 
 
-def run(corpus, alignment, **kwargs):
+def run(corpus: Document, alignment: Alignment, **kwargs: dict) -> AMR:
+    """
+    Run method.
+
+    Parameters:
+        corpus(Document): The corpus upon which the summarization process will be applied.
+        alignment(Alignment): Concept alignments corresponding to the `corpus`.
+
+    Returns:
+        AMR: Summary graph created from the `corpus`.
+    """
     open_ie = kwargs.get('open_ie')
     tf_idf_corpus_path = kwargs.get('tfidf')
 

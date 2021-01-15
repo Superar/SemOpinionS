@@ -3,22 +3,22 @@ import networkx as nx
 
 
 class AMR(nx.MultiDiGraph):
-    '''
+    """
     Class that represents an AMR graph. Inherits from Networkx' MultiDiGraph.
     Should be created using the method `load_penman` from Penman's Graph.
 
     Attributes:
         penman (penman.Graph): Graph representation in PENMAN.
                                If it is not available, it is set to None
-    '''
+    """
 
     def __init__(self):
         super().__init__()
         self.penman = None
 
     @classmethod
-    def load_penman(cls, penman_g):
-        '''
+    def load_penman(cls, penman_g: penman.Graph):
+        """
         Creates an AMR graph based on a networkx.MultiDigraph from a penman.Graph.
 
         Parameters:
@@ -27,7 +27,7 @@ class AMR(nx.MultiDiGraph):
         Returns:
             AMR: AMR graph corresponding to the input penman.
                  The input penman is set to the penman attribute.
-        '''
+        """
         amr = cls()
         amr.set_penman(penman_g)
         for r in penman_g.triples:
@@ -40,14 +40,14 @@ class AMR(nx.MultiDiGraph):
         return amr
 
     def __str__(self):
-        '''
+        """
         Creates a PENMAN string corresponding to the current object.
         If there is a "gold" penamn attribute, it is used.
         Otherwise a dummy penman is constructed using the as_penman_graph method.
 
         Returns:
             str: PENMAN encoding of the current graph
-        '''
+        """
         if self.penman is not None:
             tree = penman.configure(self.penman)
             # Reset metadata to avoid comments
@@ -56,12 +56,12 @@ class AMR(nx.MultiDiGraph):
         else:
             return penman.encode(self.as_penman_graph())
 
-    def set_penman(self, penman_g):
-        '''Sets the penman attribute'''
+    def set_penman(self, penman_g: penman.Graph) -> None:
+        """Sets the penman attribute."""
         self.penman = penman_g
 
-    def as_penman_graph(self, keep_top_edges=False):
-        '''
+    def as_penman_graph(self, keep_top_edges: bool = False) -> penman.Graph:
+        """
         Returns the current graph as a penman.Graph object.
 
         Parameters:
@@ -69,7 +69,7 @@ class AMR(nx.MultiDiGraph):
 
         Returns:
             penman.Graph: Corresponding penman.Graph.
-        '''
+        """
         if self.penman is not None:
             return self.penman
         else:
@@ -97,14 +97,14 @@ class AMR(nx.MultiDiGraph):
                 triples.append((var, ':instance', self.nodes[var]['label']))
             return penman.Graph(triples=triples, top=self.get_top())
 
-    def as_weighted_DiGraph(self):
-        '''
+    def as_weighted_DiGraph(self) -> nx.DiGraph:
+        """
         Creates a networkx' DiGraph with edge weights corresponding to the number
         of original edges between each pair of nodes.
 
         Returns:
             netorkx.DiGraph
-        '''
+        """
         dg = nx.DiGraph(self)
 
         for e in dg.edges:
@@ -113,7 +113,7 @@ class AMR(nx.MultiDiGraph):
         return dg
 
     def as_levi_graph(self):
-        ''' Turns all relations into nodes '''
+        """ Turns all relations into nodes """
         new_graph = self.copy()
         edges_to_remove = list()
         for s, t, r in self.edges:
@@ -125,12 +125,12 @@ class AMR(nx.MultiDiGraph):
         new_graph.remove_edges_from(edges_to_remove)
         return new_graph
 
-    def variables(self):
-        '''Returns a set of node names (variables) if they are not constants'''
+    def variables(self) -> set:
+        """Returns a set of node names (variables) if they are not constants"""
         return {n for n in self.nodes if self.nodes[n]}
 
-    def add_concept(self, concept, variable=None):
-        '''
+    def add_concept(self, concept: str, variable: str = None) -> str:
+        """
         Adds a new concept (node) in the graph.
 
         Parameters:
@@ -139,7 +139,7 @@ class AMR(nx.MultiDiGraph):
 
         Returns:
             str: The final variable name indicating the new node included in the graph
-        '''
+        """
         if not variable:
             variable = concept[0]
             var_count = 0
@@ -152,38 +152,38 @@ class AMR(nx.MultiDiGraph):
 
         return variable
 
-    def get_concept_nodes(self):
-        '''Returns a list of node names (variables) if they are not constants'''
+    def get_concept_nodes(self) -> list:
+        """Returns a list of node names (variables) if they are not constants"""
         return [n for n in self.nodes if self.nodes[n] and 'label' in self.nodes[n]]
 
-    def get_constant_nodes(self):
-        '''Returns a list of node names if they are constants'''
+    def get_constant_nodes(self) -> list:
+        """Returns a list of node names if they are constants"""
         return [n for n in self.nodes if not self.nodes[n]]
 
-    def get_top(self):
-        '''Returns the root node of the graph. This is represented by a self-loop labeled :TOP.'''
+    def get_top(self) -> str:
+        """Returns the root node of the graph. This is represented by a self-loop labeled :TOP."""
         for s, _, r in self.edges:
             if r == ':TOP':
                 return s
 
-    def get_node_depth(self, node):
-        '''Returns the depth (length of shortest path to the root) of a given node.'''
+    def get_node_depth(self, node: str) -> int:
+        """Returns the depth (length of shortest path to the root) of a given node."""
         return nx.shortest_path_length(self.to_undirected(),
                                        source=node,
                                        target=self.get_top())
 
-    def get_node_label(self, node):
-        '''
+    def get_node_label(self, node: str) -> str:
+        """
         Return the label if a given node.
         If it is a constant, the node name is also the label.
-        '''
+        """
         try:
             return self.nodes[node]['label']
         except KeyError:
             return node
 
-    def get_label_node(self, label):
-        '''Returns the node which contains the given label.'''
+    def get_label_node(self, label: str) -> str:
+        """Returns the node which contains the given label."""
         for n in self.nodes:
             try:
                 if self.nodes[n]['label'] == label:
@@ -193,16 +193,16 @@ class AMR(nx.MultiDiGraph):
                     return n
 
     def copy(self):
-        '''
+        """
         Returns a new AMR object containing the same nodes and edges.
         The penman attribute is, however, set to None.
-        '''
+        """
         copied_amr = AMR.load_penman(self.as_penman_graph(keep_top_edges=True))
         copied_amr.set_penman(None)
         return copied_amr
 
-    def merge(self, amr_graph, collapse_ner=False, collapse_date=False):
-        '''
+    def merge(self, amr_graph, collapse_ner: bool = False, collapse_date: bool = False):
+        """
         Merges two AMR graphs together according to their node labels.
         NE and date nodes are collapsed before proceeding with the merging.
         Thus, they are only merged if their attributes are the same.
@@ -214,7 +214,7 @@ class AMR(nx.MultiDiGraph):
 
         Returns:
             AMR: A new AMR graph containing all nodes and edges from both input AMRs
-        '''
+        """
         assert isinstance(amr_graph, AMR)
 
         # NER nodes should not be merged
@@ -278,8 +278,10 @@ class AMR(nx.MultiDiGraph):
 
         return merge_graph
 
-    def draw(self, path='amr.pdf', highlight_subgraph_nodes=None, highlight_subgraph_edges=None):
-        '''
+    def draw(self, path: str = 'amr.pdf',
+             highlight_subgraph_nodes: list = None,
+             highlight_subgraph_edges: list = None) -> None:
+        """
         Draw the current AMR graph to a PDF file using DOT.
         The graph can also have some subgraph highlighted in red.
 
@@ -287,7 +289,7 @@ class AMR(nx.MultiDiGraph):
             path (str, default amr.pdf): Path to which draw the file
             highlight_subgraph_nodes (list): List of nodes to highlight with all edges between them
             highlight_subgraph_edges (list): List of edges to highlight with all their nodes
-        '''
+        """
         if highlight_subgraph_nodes is None:
             highlight_subgraph_nodes = list()
         if highlight_subgraph_edges is None:
@@ -319,8 +321,8 @@ class AMR(nx.MultiDiGraph):
                 if 'color' in d:
                     del self.edges[s, t, d['label']]['color']
 
-    def collapse_ner_nodes(self):
-        '''
+    def collapse_ner_nodes(self) -> None:
+        """
         Collapses all sets of NE subgraphs into a sigle node for each NE name.
 
         For example, the following NE:
@@ -333,7 +335,7 @@ class AMR(nx.MultiDiGraph):
         Will become:
         (N1 / NER:city.name."New"."York"
             :wiki "New_York_City")
-        '''
+        """
         ner_nodes = list()
         for n in self.get_concept_nodes():
             for succ in self.successors(n):
@@ -367,8 +369,8 @@ class AMR(nx.MultiDiGraph):
 
         self.remove_nodes_from(constants)
 
-    def uncollapse_ner_nodes(self):
-        '''Restores all collapsed NE nodes into multiple node representations'''
+    def uncollapse_ner_nodes(self) -> None:
+        """Restores all collapsed NE nodes into multiple node representations"""
         for n in self.get_concept_nodes():
             if self.nodes[n]['label'].startswith('NER:'):
                 ner_data = self.nodes[n]['label'].lstrip('NER:').split('.')
@@ -383,8 +385,8 @@ class AMR(nx.MultiDiGraph):
                         role = ':op{}'.format(i)
                         self.add_edge(var, name, role, label=role)
 
-    def collapse_date_nodes(self):
-        '''
+    def collapse_date_nodes(self) -> None:
+        """
         Collapses all sets of date-tentity subgraphs into a sigle node for each date.
 
         For example, the following NE:
@@ -395,7 +397,7 @@ class AMR(nx.MultiDiGraph):
 
         Will become:
         (D1 / DATE:year.2:month.2:day.29)
-        '''
+        """
         to_remove = list()
 
         for n in self.get_concept_nodes():
@@ -421,8 +423,8 @@ class AMR(nx.MultiDiGraph):
 
         self.remove_nodes_from(to_remove)
 
-    def uncollapse_date_nodes(self):
-        '''Restores all collapsed date-entity nodes into multiple node representations'''
+    def uncollapse_date_nodes(self) -> None:
+        """Restores all collapsed date-entity nodes into multiple node representations"""
         for n in self.get_concept_nodes():
             if self.nodes[n]['label'].startswith('DATE:'):
                 data = self.nodes[n]['label'].lstrip('DATE:').split(':')

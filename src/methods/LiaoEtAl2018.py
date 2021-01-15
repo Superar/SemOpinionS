@@ -9,6 +9,9 @@ from nltk import word_tokenize
 from pylcs import lcs
 from smatch import get_amr_match, compute_f
 from random import sample
+from typing import Tuple, Dict
+from scipy.sparse import csr_matrix
+from pathlib import Path
 import pandas as pd
 import numpy as np
 from .LiuEtAl2015 import (update_weights,
@@ -18,11 +21,31 @@ from .LiuEtAl2015 import (update_weights,
                           ilp_optimisation)
 from .DohareEtAl2018 import preprocess, score_concepts
 from ..document import Document
+from ..alignment import Alignment
+from ..amr import AMR
 from .DohareEtAl2018 import get_tf_idf as Dohare_tf_idf
 from .LiuEtAl2015 import prepare_training_data as Liu_prepare_data
 
 
 def include_tf_idf(local_repr, scores, concept_alignments, tf_idf):
+    """
+    Given a matrix of attributes for nodes/edges, incorporate TF-IDF counts as a new attribute.
+    The attribute is binirized in 4 points: -4.5, 0, 3, 7.5; as these were, respectively,
+    the minimum (using a maximum of 1.5 interquartile range), 1st quartile, 2nd quartile and 3rd quartile
+    values in our training set.
+    This function also adds another feature indicating if the concept is in the larger corpus used to
+    calculate the DF values.
+
+    Parameters:
+        local_repr (DataFrame): Local representations (attribute matrix) for each node/edge.
+        scores (Counter): TF-IDF values for each concept.
+        concept_alignments (dict): Mapping from concepts to words.
+        tf_idf (CountVectorizer): CountVectorizer used to calculate the TF-IDF values.
+                                  Used to get vocabulary mappings into indices.
+    
+    Returns:
+        DataFrame: `local_repr` extended with the TF-IDF values for each row.
+    """
     for idx, feats in local_repr.iterrows():
         concept = feats['concept']
 
@@ -30,12 +53,15 @@ def include_tf_idf(local_repr, scores, concept_alignments, tf_idf):
             score = scores[feats['concept']]
         else:
             score = -float('inf')  # Will set all threasholds to 0
+
+        # Binarize the value (4 additional features)
         for t in [-4.5, 0, 3, 7.5]:
             if score >= t:
                 local_repr.loc[[idx], f'tf_idf_{t}'] = 1.0
             else:
                 local_repr.loc[[idx], f'tf_idf_{t}'] = 0.0
 
+        # Indicate if the concept (any word to which it is aligned) is present in the larger vocabulary.
         in_vocab = False
         if concept in concept_alignments:
             for w in concept_alignments[concept]:
@@ -49,23 +75,61 @@ def include_tf_idf(local_repr, scores, concept_alignments, tf_idf):
     return local_repr
 
 
-def prepare_training_data(training_path, gold_path, alignment, tf_idf_counts):
+def prepare_training_data(training_path: Path, gold_path: Path,
+                          alignment: Alignment, tf_idf_counts: tuple) -> pd.DataFrame:
+    """
+    Create the training instances, one for each node/edge in each graph in both training_path and gold_path.
+    Both training and gold paths must be aligned, so that the `gold_path` documents corresponds to
+    the target value (the summary) of the `training_path` document.
+
+    Parameters:
+        training_path (Path): Training document.
+        gold_path (Path): Target/summary document.
+        alignment (Alignment): Concept alignments containing information of both train and target documents.
+        tf_idf_counts (tuple): A tuple returned by the LiaoEtAl2018.get_tf_idf() function.
+    
+    Returns:
+        DataFrame: Matrix containing the attributes representations for each node/edge in both training and gold documents.
+    """
+    # Get TF and DF counts for this specific pair
     tf_idf, tf_counts, df_counts, num_docs, doc_to_index = tf_idf_counts
     doc_tf = tf_counts[doc_to_index[('training', training_path.name)], :]
+
+    # Preprocessing: merge graphs and get alignments
     merged_graph, concept_alignments = preprocess(Document.read(training_path),
                                                   alignment)
+    # Calculate TF-IDF for each concept in the merged graph
     scores = score_concepts(merged_graph,
                             (tf_idf, doc_tf, df_counts, num_docs),
                             concept_alignments)
 
+    # Get attributes: the ones from LiuEtAl2015 + TF-IDF
     features = Liu_prepare_data(training_path, gold_path, alignment)
     features = include_tf_idf(features, scores, concept_alignments, tf_idf)
 
     return features
 
 
-def train(training_path, gold_path, alignment, tf_idf_counts):
+def train(training_path: Path, gold_path: Path, alignment: Alignment, tf_idf_counts: tuple) -> np.array:
+    """
+    Train the weights for the scoring method using ILP and AdaGrad. The preprocessing is done parallelly.
+    Each node/edge from each AMR graph is represented as a set of binary attributes.
+    The importance score of a node/edge is given by the linear combination of its attributes given a weight vector.
+    The weight vector is initialized as a vector of 1, then it is updated via AdaGrad
+    using a ramp loss function through supervised learning.
+
+    Parameters:
+        training_path (Path): The corpus to use as training.
+        gold_path (Path): The corpus to use as target.
+        alignment (Alignment): The concept alignments for both train and target corpora.
+        tf_idf_counts (tuple): A tuple returned by the LiaoEtAl2018.get_tf_idf() function.
+    
+    Returns:
+        array: Optimized weights for the scoring of nodes and edges.
+    """
+    # Create training instances parallelly through the prepare_training_data function
     with ThreadPoolExecutor(max_workers=cpu_count() - 1) as executor:
+        # Organize arguments for mapping
         train_filepaths = list()
         target_filepaths = list()
         for instance_path in training_path.iterdir():
@@ -74,19 +138,24 @@ def train(training_path, gold_path, alignment, tf_idf_counts):
         alignment_arg = repeat(alignment)
         tf_idf_arg = repeat(tf_idf_counts)
 
+        # Create training and target representations
         result = executor.map(prepare_training_data,
                               train_filepaths,
                               target_filepaths,
                               alignment_arg,
                               tf_idf_arg)
 
+    # Combine all results from the parallel processing
+    # Also provide one-hot encoding for concept attributes
     local_reprs_df = pd.get_dummies(pd.concat(result),
                                     columns=['concept',
                                              'node1_concept',
                                              'node2_concept'],
                                     dtype=np.float32)
+    # Get pairs of train-target instances
     pairs_groups = local_reprs_df.groupby(by='name')
 
+    # Initialize weights
     weights = np.ones(local_reprs_df.shape[1] - 3)
     for g in pairs_groups.groups:
         # Separate train and target through the type column and ignore non-feature columns
@@ -106,7 +175,26 @@ def train(training_path, gold_path, alignment, tf_idf_counts):
     return weights
 
 
-def get_tf_idf(training_path, gold_path, tf_idf_path):
+def get_tf_idf(training_path: Path, gold_path: Path, tf_idf_path: Path) -> Tuple[CountVectorizer, csr_matrix, csr_matrix, int, Dict[str, int]]:
+    """
+    Calculate both Term Frequency (TF) and Document Frequency (DF) counts for the words in given corpora. 
+    `training_path` and `gold_path are the ones to calculate TF, while `tf_idf_path`
+    is the one to use for DF counts.
+    This also returns the number of documents used to calculate the DF and a mapping of each
+    document in `training_path` and `gold_path` to their corresponding index in the TF matrix.
+
+    Parameters:
+        training_path (Path): The training corpus to calculate the TF.
+        gold_path (Path): The target/gold corpus to calculate the TF.
+        tf_idf_path (Path): The corpus to calculate the DF.
+    
+    Returns:
+        tuple(CountVectorizer, csr_matrix, csr_matrix, int, dict): Tuple containing the CountVectorizer
+        (sklearn) object used in the counting, the matrices for both TF and DF (in this order),
+        the number of documents processed to calculate the DF and, finally, the mapping for each document
+        in training and gold corpora into indices of the TF matrix.
+    """
+    # Count DF
     texts = list(tf_idf_path.iterdir())
     tf_idf = CountVectorizer(input='filename',
                              tokenizer=lambda txt: word_tokenize(txt, language='portuguese'))
@@ -119,6 +207,7 @@ def get_tf_idf(training_path, gold_path, tf_idf_path):
     training_paths = list(training_path.iterdir())
     gold_paths = list(gold_path.iterdir())
 
+    # Write temporary files for both training and gold texts
     tf_paths = list()
     for file_ in training_paths + gold_paths:
         doc = Document.read(file_)
@@ -129,11 +218,13 @@ def get_tf_idf(training_path, gold_path, tf_idf_path):
                 tmp_file.write('\n')
         tf_paths.append((tmp, tmp_name))
 
+    # Count TF
     tf_counts = tf_idf.transform([p for _, p in tf_paths])
     for tmp, tmp_name in tf_paths:
         os.close(tmp)
         os.remove(tmp_name)
 
+    # Create a mapping from training and gold files into a matrix index
     doc_to_index = {('training', f.name): i
                     for i, f in enumerate(training_path.iterdir())}
     doc_to_index.update({('gold', f.name): len(training_paths) + i
@@ -141,7 +232,21 @@ def get_tf_idf(training_path, gold_path, tf_idf_path):
     return tf_idf, tf_counts, df_counts, num_docs, doc_to_index
 
 
-def calculate_similarity_matrix(corpus, metric):
+def calculate_similarity_matrix(corpus: Document, metric: str) -> pd.DataFrame:
+    """
+    Calculates a similarity matrix between each pair of sentences in the `corpus`.
+    The similarity can be determined by three different types of metrics:
+        - Longest Common Subsequence (lcs): Number of words in common (in the same place) between two sentences.
+        - Smatch (smatch): Smatch score between the AMR graphs of both sentences.
+        - Concept Coverage (concept_coverage): The number of concepts in common between the AMAR graphs of both sentences.
+    
+    Parameters:
+        corpus (Document): Corpus from which to create the similarity matrix.
+        metric (str): What kind of metric to calculate the similarity.
+    
+    Returns:
+        DataFrame: Similarity matrix between each pair of sentences.
+    """
     ids = [id_ for id_, _, _ in corpus]
 
     similarity = pd.DataFrame(0, columns=ids, index=ids)
@@ -166,7 +271,17 @@ def calculate_similarity_matrix(corpus, metric):
     return similarity
 
 
-def run(corpus, alignment, **kwargs):
+def run(corpus: Document, alignment: Alignment, **kwargs: dict) -> AMR:
+    """
+    Run method.
+
+    Parameters:
+        corpus(Document): The corpus upon which the summarization process will be applied.
+        alignment(Alignment): Concept alignments corresponding to the `corpus`.
+
+    Returns:
+        AMR: Summary graph created from the `corpus`.
+    """
     training_path = kwargs.get('training')
     gold_path = kwargs.get('target')
     output_path = kwargs.get('output')
@@ -174,6 +289,7 @@ def run(corpus, alignment, **kwargs):
     tf_idf_corpus_path = kwargs.get('tfidf')
     similarity = kwargs.get('similarity')
 
+    # Check arguments
     if not weights_path and not (training_path and gold_path):
         raise ValueError('LiaoEtAl2018 method requires either training and '
                          'target arguments or pre-trained weights')
@@ -181,6 +297,7 @@ def run(corpus, alignment, **kwargs):
         raise ValueError('LiaoEtAl2018 method requires '
                          'a larger corpus to calculate TF-IDF')
 
+    # Train or load weights
     if not weights_path and (training_path and gold_path):
         counts = get_tf_idf(training_path, gold_path, tf_idf_corpus_path)
         weights = train(training_path, gold_path, alignment, counts)

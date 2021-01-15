@@ -1,8 +1,9 @@
 import penman
+from typing import Union
 
 
 class Alignment(object):
-    '''
+    """
     Class that stores alignment information.
     Should be created using the methods `read_giza` or `read_jamr` according to the format.
 
@@ -10,7 +11,7 @@ class Alignment(object):
         sentences (list): all sentences from the original file in lower case
         alignment (list): list of dictionaries concept-to-word, parallel with sentences
         word_to_concept (list): list of dictionaries word-to-concept, parallel with sentences
-    '''
+    """
 
     def __init__(self, sentences, alignment):
         self.sentences = sentences
@@ -27,12 +28,12 @@ class Alignment(object):
             self.word_to_concept.append(words)
 
     def __getitem__(self, item):
-        '''Numerical indexing of alignments'''
+        """Numerical indexing of alignments"""
         return self.alignment[item]
 
     @classmethod
-    def read_giza(cls, filepath):
-        '''
+    def read_giza(cls, filepath: str):
+        """
         Creates an Alignment object from reading an alignment file in GIZA format.
 
         Parameters:
@@ -40,7 +41,7 @@ class Alignment(object):
 
         Returns:
             Alignment: Alignment object containing all alignments read
-        '''
+        """
         sentences = list()
         alignment = list()
         with open(filepath, encoding='utf-8') as file_:
@@ -75,7 +76,16 @@ class Alignment(object):
         return cls(sentences, alignment)
 
     @classmethod
-    def read_jamr(cls, filepath):
+    def read_jamr(cls, filepath: str):
+        """
+        Creates an Alignment object from reading an alignment file in JAMR format.
+
+        Parameters:
+            filepath (str): Path to the alignment file in JAMR format
+        
+        Returns:
+            Alignment: Alignment object containing all alignments read
+        """
         sentences = list()
         alignment = list()
         with open(filepath, encoding='utf-8') as file_:
@@ -98,8 +108,8 @@ class Alignment(object):
                             alignment[-1][node_data[1]].append(cur_toks[i])
         return cls(sentences, alignment)
 
-    def get_sentence_position(self, sentence):
-        '''
+    def get_sentence_position(self, sentence: str) -> Union[int, None]:
+        """
         Given a sentence, return its index in all paralle attributes lists
 
         Parameters:
@@ -108,15 +118,15 @@ class Alignment(object):
         Returns:
             Integer: Index of the sentence if it is found
             None: If the sentence has not been found
-        '''
+        """
         sentence = sentence.lower()
         for i, sent in enumerate(self.sentences):
             if sentence in sent:
                 return i
         return None
 
-    def get_alignments(self, sentence):
-        '''
+    def get_alignments(self, sentence: str) -> Union[dict, None]:
+        """
         Given a sentence, return its concept-to-word dictionary
 
         Parameters:
@@ -125,15 +135,15 @@ class Alignment(object):
         Returns:
             Dict: Alignment concept-to-word dictionary for the given sentence
             None: If the sentence has not been found
-        '''
+        """
         idx = self.get_sentence_position(sentence)
         if idx is not None:
             return self.alignment[idx]
         else:
             return None
 
-    def get_reverse_alignments(self, sentence):
-        '''
+    def get_reverse_alignments(self, sentence: str) -> Union[dict, None]:
+        """
         Given a sentence, return its word-to-concept dictionary
 
         Parameters:
@@ -142,7 +152,7 @@ class Alignment(object):
         Returns:
             Dict: Alignment word-to-concept dictionary for the given sentence
             None: If the sentence has not been found
-        '''
+        """
         idx = self.get_sentence_position(sentence)
         if idx is not None:
             return self.word_to_concept[idx]

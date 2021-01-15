@@ -467,7 +467,7 @@ def update_weights(weights, train, gold, top, loss='perceptron'):
 
 
 def train(training_path, gold_path, alignment, loss):
-    # Create training instances
+    # Create training instances parallelly through the prepare_training_data functiontances
     with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count() - 1) as executor:
         # Organize arguments for mapping
         train_filepaths = list()
@@ -483,6 +483,8 @@ def train(training_path, gold_path, alignment, loss):
                               target_filepaths,
                               alignment_arg)
 
+    # Combine all results from the parallel processing
+    # Also provide one-hot encoding for concept attributes
     local_reprs_df = pd.get_dummies(pd.concat(result),
                                     columns=['concept',
                                              'node1_concept',
