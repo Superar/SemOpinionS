@@ -4,7 +4,7 @@ from random import sample
 import pandas as pd
 from .machine_learning import (train, integrate_sentiment, Dohare_tf_idf,
                                get_concept_alignments, calculate_features,
-                               create_final_summary)
+                               create_final_summary, get_aspect_list)
 from .LiaoEtAl2018 import calculate_similarity_matrix
 from ..document import Document
 from ..alignment import Alignment
@@ -12,7 +12,17 @@ from ..amr import AMR
 from ..sentlex import SentimentLexicon
 
 
-def run(corpus: Document, alignment: Alignment, **kwargs) -> AMR:
+def run(corpus: Document, alignment: Alignment, **kwargs: dict) -> AMR:
+    """
+    Run method.
+
+    Parameters:
+        corpus(Document): The corpus upon which the summarization process will be applied.
+        alignment(Alignment): Concept alignments corresponding to the `corpus`.
+
+    Returns:
+        AMR: Summary graph created from the `corpus`.
+    """
     training_path = kwargs.get('training')
     target_path = kwargs.get('target')
     sentlex_path = kwargs.get('sentlex')
@@ -22,8 +32,10 @@ def run(corpus: Document, alignment: Alignment, **kwargs) -> AMR:
     open_ie = kwargs.get('open_ie')
     similarity = kwargs.get('similarity')
     machine_learning = kwargs.get('machine_learning')
+    aspects = kwargs.get('aspects')
     output_path = kwargs.get('output')
 
+    # Train of load model
     if not model_path and (training_path and target_path):
         model = train(training_path, target_path,
                       sentlex, tf_idf_path,
@@ -32,6 +44,7 @@ def run(corpus: Document, alignment: Alignment, **kwargs) -> AMR:
     elif model_path:
         model = load(model_path)
 
+    # Test
     if corpus:
         # Clustering
         similarity_matrix = calculate_similarity_matrix(corpus, similarity)
@@ -53,8 +66,10 @@ def run(corpus: Document, alignment: Alignment, **kwargs) -> AMR:
         integrate_sentiment(merged_test_graph, sentlex)
         tf_idf = Dohare_tf_idf(corpus, tf_idf_path)
         concept_alignments = get_concept_alignments(corpus, alignment)
+        aspect_list = get_aspect_list(aspects, corpus.path.name)
         test_feats = calculate_features(merged_test_graph, sentlex,
-                                        concept_alignments, tf_idf)
+                                        concept_alignments, tf_idf,
+                                        aspect_list)
 
         predictions = model.predict(test_feats)
         selected_nodes = test_feats.index[predictions]

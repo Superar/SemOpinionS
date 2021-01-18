@@ -6,6 +6,7 @@ from joblib import dump, load
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import cpu_count
 from itertools import repeat
+from typing import Union
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
@@ -24,7 +25,25 @@ from .DohareEtAl2018 import get_tf_idf as Dohare_tf_idf
 def train(training_path: Path, target_path: Path,
           sentlex: SentimentLexicon, tf_idf_path: Path,
           alignment: Alignment, type_: str, levi: bool = False,
-          aspects: Path = None) -> DecisionTreeClassifier:
+          aspects: Path = None) -> Union[DecisionTreeClassifier, RandomForestClassifier, SVC, MLPClassifier]:
+    """
+    Train the Machine Learning model to select imporant nodes (concepts)
+    from the given data. The model is selected through the `type_` parameter.
+
+    Paramters:
+        training_path (Path): The corpus to use as training.
+        target_path (Path): The corresponding corpus to use as target.
+        sentlex (SentimentLexicon): Sentiment lexicon mapping concepts to their sentiment polarity.
+        tf_idf_path (Path): Path to a larger corpus from which to calculate Document Frequency.
+        alignment (Alignment): The concept alignments for both train and target corpora.
+        type_ (str): Which ML technique to use (decision_tree, random_forest, svm, mlp).
+        levi (bool): Whether or not to use Levi Graphs
+                     (convert edges to nodes, so that the ML model can select them too).
+        aspects (Path): Include aspect annotation as a feature. Ignored if None.
+
+    Returns:
+        DecisionTreeClassifier, RandomForestClassifier, SVC, MLPClassifier: Trained model.
+    """
     training_files = list(training_path.iterdir())
     target_files = list(target_path.iterdir())
     tf_idf = get_tf_idf(training_path, target_path, tf_idf_path)
@@ -56,6 +75,16 @@ def train(training_path: Path, target_path: Path,
 
 
 def run(corpus: Document, alignment: Alignment, **kwargs) -> AMR:
+    """
+    Run method.
+
+    Parameters:
+        corpus(Document): The corpus upon which the summarization process will be applied.
+        alignment(Alignment): Concept alignments corresponding to the `corpus`.
+
+    Returns:
+        AMR: Summary graph created from the `corpus`.
+    """
     training_path = kwargs.get('training')
     target_path = kwargs.get('target')
     sentlex_path = kwargs.get('sentlex')
@@ -68,6 +97,7 @@ def run(corpus: Document, alignment: Alignment, **kwargs) -> AMR:
     aspects = kwargs.get('aspects')
     output_path = kwargs.get('output')
 
+    # Train or load model
     if not model_path and (training_path and target_path):
         model = train(training_path, target_path,
                       sentlex, tf_idf_path,
@@ -76,6 +106,7 @@ def run(corpus: Document, alignment: Alignment, **kwargs) -> AMR:
     elif model_path:
         model = load(model_path)
 
+    # Test
     if corpus:
         merged_graph = corpus.merge_graphs()
         if levi:

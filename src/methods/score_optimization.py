@@ -19,10 +19,18 @@ from .DohareEtAl2018_TF import score_concepts as score_concepts_tf, get_importan
 
 
 def integrate_sentiment(graph: AMR, sentlex: SentimentLexicon) -> None:
+    """
+    Add **in place** polarity values as an node attributes of the graph.
+
+    Parameters:
+        graph (AMR): Graph to be modified.
+        sentlex (SentimentLexicon): Sentiment Lexicon mapping words to their poalrity.
+    """
     for n in graph:
         label = graph.get_node_label(n)
         sent = 0
-        word = re.sub(r'-d+$', '', label)
+        # Corresponding is directly obtained from the concept
+        word = re.sub(r'-\d+$', '', label)
         if word in sentlex:
             sent = sentlex[word]
         graph.nodes[n]['sent'] = sent
@@ -33,6 +41,20 @@ def calculate_features(graph: AMR,
                        concept_alignments: dict,
                        tf_idf_counts: tuple,
                        aspect_list: list) -> pd.DataFrame:
+    """
+    Create an attribute matrix for the given `graph`, according to its nodes.
+
+    Parameters:
+        graph (AMR): Graph from which to extract the attributes.
+        sentlex (SentimentLexicon): Sentiment Lexicon mapping words to their poalrity.
+        concept_alignments (dict): Concept alignments mapping concepts to words.
+        tf_idf_counts (tuple): Tuple created by the LiaoEtAl2018.get_tf_idf() function.
+        aspect_list (list): List of aspects within the given `graph`. Ignored if None.
+    
+    Returns:
+        pd.DataFrame: Attribute matrix for the given `graph`.
+                      One node per row with attributes in the columns.
+    """
     nodes = [n for n in graph]
     df = pd.DataFrame(index=nodes)
 
@@ -98,6 +120,25 @@ def prepare_training_data(training_path: Path, gold_path: Path,
                           sentlex: SentimentLexicon, alignment: Alignment,
                           tf_idf_counts: tuple, levi: bool = False,
                           aspects: Path = None) -> pd.DataFrame:
+    """
+    Create the training instances, one for each node in each graph
+    in both training and gold_path.
+    
+    Parameters:
+        training_path (Path): Training document.
+        gold_path (Path): Target/summary document.
+        alignment (Alignment): Concept alignments containing information of
+                               both training and target documents.
+        tf_idf_counts (tuple): Tuple created by the LiaoEtAl2018.get_tf_idf() function.
+        levi (bool): Whether or not to use Levi Graphs
+                     (convert edges to nodes, so that the ML model can select them too).
+        aspects (Path): Include aspect annotation as a feature. Ignored if None.
+
+    Returns:
+        pd.DataFrame: Local representations (attributes) for each node,
+                      including a binary `class` attribute and a identification
+                      `instance` attribute.
+    """
     training_corpus = Document.read(training_path)
     training_graph = training_corpus.merge_graphs()
     if levi:
@@ -131,6 +172,16 @@ def prepare_training_data(training_path: Path, gold_path: Path,
 
 
 def get_aspect_list(aspects: Path, corpus_name: str) -> list:
+    """
+    Read aspect annotation file.
+
+    Parameters:
+        aspects (Path): Path to the aspect annotated file in JSON.
+        corpus_name (str): Key to seach for in the JSON file.
+    
+    Returns:
+        list: List of aspects (words) corresponding to the given `corpus_name`.
+    """
     aspect_list = list()
     if aspects:
         with aspects.open(encoding='utf-8') as f:
@@ -141,6 +192,16 @@ def get_aspect_list(aspects: Path, corpus_name: str) -> list:
 
 
 def fitness_function(weights: np.ndarray, data: pd.DataFrame) -> float:
+    """
+    Concept coverage. Fitness function to be used during the optimization.
+
+    Parameters:
+        weights (np.ndarray): Weights to score each node.
+        data (pd.DataFrame): Nodes attributes.
+
+    Returns:
+        float: Fitness value. 
+    """
     feats = data.loc[:, data.columns != 'class']
     objective = data.loc[:, 'class']
 
@@ -170,6 +231,23 @@ def simulated_annealing_optimization(data: pd.DataFrame,
                                      n_neighbors: int = 5,
                                      temp_decay: float = 0.9,
                                      temp_decay_iter: int = 10) -> np.ndarray:
+    """
+    Weight optimization through simulated annealing.
+
+    Parameters:
+        data (pd.DataFrame): Nodes local representations (attributes),
+                             along with a binary `class` target attribute.
+        starting_weights (np.ndarray): Starting weight values.
+        n_iter (int): Number of iterations.
+        n_neighbors (int): Number of neighbours to consider during
+                           each optimization step.
+        temp_decay (float): Temperature decay, how much will be preserved.
+                            Must be a value between 0 and 1.
+        temp_decay_iter (int): Every how many iterations should the temperature decay.
+    
+    Returns:
+        np.ndarray: Optimized weights.
+    """
     cur_weights = starting_weights
     cur_fitness = fitness_function(cur_weights, data)
     cur_temp = 1.0
@@ -201,6 +279,20 @@ def simulated_annealing_optimization(data: pd.DataFrame,
 def train(training_path: Path, target_path: Path,
           sentlex: SentimentLexicon, tf_idf_path: Path,
           alignment: Alignment) -> pd.Series:
+    """
+    Optimize the weights for the scoring method using a Simulated Annealing approach.
+
+    Parameters:
+        training_path (Path): The corpus to use as training.
+        target_path (Path): The corpus to use as target.
+        sentlex (SentimentLexicon): Sentiment lexicon mapping concepts to their sentiment polarity.
+        tf_idf_path (Path): Path to a larger corpus from which to calculate Document Frequency.
+        alignment (Alignment): The concept alignments for both train and target corpora.
+    
+    Returns:
+        pd.Series: Optimized weights.
+    """
+    # Get features
     training_files = list(training_path.iterdir())
     target_files = list(target_path.iterdir())
     tf_idf = get_tf_idf(training_path, target_path, tf_idf_path)
@@ -216,15 +308,25 @@ def train(training_path: Path, target_path: Path,
     data = pd.concat(result)
 
     feats = data.loc[:, data.columns != 'class']
-    objective = data.loc[:, 'class']
     num_feats = feats.shape[1]
 
+    # Initialize weights
     weights = np.random.uniform(-1.0, 1.0, num_feats)
     weights = simulated_annealing_optimization(data, weights)
     return pd.Series(weights, index=feats.columns)
 
 
-def run(corpus: Document, alignment: Alignment, **kwargs) -> AMR:
+def run(corpus: Document, alignment: Alignment, **kwargs: dict) -> AMR:
+    """
+    Run method.
+
+    Parameters:
+        corpus(Document): The corpus upon which the summarization process will be applied.
+        alignment(Alignment): Concept alignments corresponding to the `corpus`.
+
+    Returns:
+        AMR: Summary graph created from the `corpus`.
+    """
     training_path = kwargs.get('training')
     target_path = kwargs.get('target')
     sentlex_path = kwargs.get('sentlex')

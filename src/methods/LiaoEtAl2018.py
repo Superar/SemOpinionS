@@ -305,6 +305,7 @@ def run(corpus: Document, alignment: Alignment, **kwargs: dict) -> AMR:
     elif weights_path:
         weights = pd.read_csv(weights_path, index_col=0, squeeze=True)
 
+    # Test
     if corpus:
         # Clustering
         similarity_matrix = calculate_similarity_matrix(corpus, similarity)
