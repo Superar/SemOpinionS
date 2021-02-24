@@ -15,6 +15,8 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     '--method', '-m',
     help='Summarization method to execute',
+    choices=['DohareEtAl2018', 'DohareEtAl2018_TF', 'LiuEtAl2015', 'LiaoEtAl2018',
+             'machine_learning', 'machine_learning_clustering', 'score_optimization'],
     required=True
 )
 
