@@ -113,6 +113,7 @@ def calculate_features(graph: AMR,
                         concept_aspect = 1
                         break
             aspect.append(concept_aspect)
+        df['aspect'] = aspect
     return df
 
 
