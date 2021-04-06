@@ -186,8 +186,9 @@ def get_aspect_list(aspects: Path, corpus_name: str) -> list:
     if aspects:
         with aspects.open(encoding='utf-8') as f:
             aspects = json.load(f)
-        for k in aspects[corpus_name]:
-            aspect_list.extend(map(str.lower, aspects[corpus_name][k]))
+        if corpus_name in aspects:
+            for k in aspects[corpus_name]:
+                aspect_list.extend(map(str.lower, aspects[corpus_name][k]))
     return aspect_list
 
 
@@ -278,7 +279,7 @@ def simulated_annealing_optimization(data: pd.DataFrame,
 
 def train(training_path: Path, target_path: Path,
           sentlex: SentimentLexicon, tf_idf_path: Path,
-          alignment: Alignment) -> pd.Series:
+          alignment: Alignment, aspects: Path) -> pd.Series:
     """
     Optimize the weights for the scoring method using a Simulated Annealing approach.
 
@@ -288,6 +289,7 @@ def train(training_path: Path, target_path: Path,
         sentlex (SentimentLexicon): Sentiment lexicon mapping concepts to their sentiment polarity.
         tf_idf_path (Path): Path to a larger corpus from which to calculate Document Frequency.
         alignment (Alignment): The concept alignments for both train and target corpora.
+        aspects (Path): Include product aspect annotation. Ignored if None.
     
     Returns:
         pd.Series: Optimized weights.
@@ -303,7 +305,9 @@ def train(training_path: Path, target_path: Path,
                               target_files,
                               repeat(sentlex),
                               repeat(alignment),
-                              repeat(tf_idf))
+                              repeat(tf_idf),
+                              repeat(False),
+                              repeat(aspects))
 
     data = pd.concat(result)
 
@@ -340,7 +344,7 @@ def run(corpus: Document, alignment: Alignment, **kwargs: dict) -> AMR:
     if not weights_path and (training_path and target_path):
         weights = train(training_path, target_path,
                         sentlex, tf_idf_path,
-                        alignment)
+                        alignment, aspects)
         weights.to_csv(output_path / 'weights.csv')
     elif weights_path:
         weights = pd.read_csv(weights_path, index_col=0, squeeze=True)
