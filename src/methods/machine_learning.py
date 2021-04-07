@@ -58,7 +58,7 @@ def train(training_path: Path, target_path: Path,
                               repeat(levi),
                               repeat(aspects))
 
-    data = pd.concat(result)
+    data = pd.concat(result).fillna(0)
     feats = data.loc[:, data.columns != 'class']
     objective = data.loc[:, 'class']
 
@@ -101,7 +101,8 @@ def run(corpus: Document, alignment: Alignment, **kwargs) -> AMR:
     if not model_path and (training_path and target_path):
         model = train(training_path, target_path,
                       sentlex, tf_idf_path,
-                      alignment, machine_learning, levi)
+                      alignment, machine_learning, levi,
+                      aspects)
         dump(model, output_path / 'model.joblib')
     elif model_path:
         model = load(model_path)
