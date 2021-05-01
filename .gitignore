@@ -5,3 +5,4 @@ corpus_figures/
 selected_paths/
 out/
 tete.py
+*.pyc
