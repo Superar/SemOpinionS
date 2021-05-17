@@ -11,7 +11,6 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.neural_network import MLPClassifier
-from sklearn.model_selection import cross_validate
 from .score_optimization import (prepare_training_data, get_tf_idf, integrate_sentiment,
                                  get_concept_alignments, calculate_features, get_aspect_list)
 from .DohareEtAl2018 import create_final_summary
@@ -164,7 +163,7 @@ def run(corpus: Document, alignment: Alignment, **kwargs) -> AMR:
             return summary_graph
         else:
             important_concepts = [merged_graph.get_node_label(n)
-                              for n in selected_nodes]
+                                  for n in selected_nodes]
             summary_graph = create_final_summary(corpus, important_concepts,
                                                 alignment, open_ie)
             return summary_graph
