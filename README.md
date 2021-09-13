@@ -24,10 +24,6 @@ Inácio, M.L. (2021) Sumarização de Opinião com base em Abstract Meaning Repr
   publisher = {{Universidade de S\~ao Paulo}},
   address = {{S\~ao Carlos}}
 }
-
-
-
-}
 ```
 
 ### RANLP paper
